@@ -19,7 +19,6 @@
 
 use std::fs::File;
 use std::io::{self, Write};
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -35,10 +34,11 @@ use outlook_pst::{AnsiPstFile, UnicodePstFile};
 
 use crate::codepage::{message_code_page, store_code_page};
 use crate::files::Files;
+use crate::guard::{Failure, guarded};
 use crate::jsonl::Lines;
 use crate::props::{Bag, Value, integer, tag};
 use crate::sniff::Encoding;
-use crate::{Fault, mapping, model, panic_text, warn};
+use crate::{Fault, mapping, model, warn, warn_all};
 
 /// PidTagAttachMethod's afEmbeddedMessage (MS-OXCMSG 2.2.2.9).
 const AF_EMBEDDED_MESSAGE: i64 = 5;
@@ -465,33 +465,6 @@ fn not_opened(row: &Bag) -> &'static str {
     }
 }
 
-/// Why one read failed, and whether by a panic.
-struct Failure {
-    reason: String,
-    panicked: bool,
-}
-
-/// Runs one read inside outlook-pst, turning its error or its panic into a reason.
-fn guarded<T>(read: impl FnOnce() -> io::Result<T>) -> Result<T, Failure> {
-    match catch_unwind(AssertUnwindSafe(read)) {
-        Ok(Ok(value)) => Ok(value),
-        Ok(Err(err)) => Err(Failure {
-            reason: err.to_string(),
-            panicked: false,
-        }),
-        Err(payload) => Err(Failure {
-            reason: format!("the reader panicked: {}", panic_text(&*payload)),
-            panicked: true,
-        }),
-    }
-}
-
-fn warn_all(place: &str, notes: Vec<String>) {
-    for note in notes {
-        warn(place, &note);
-    }
-}
-
 fn bag<'a>(props: impl Iterator<Item = (&'a u16, &'a PropertyValue)>) -> Bag {
     props.map(|(id, value)| (*id, convert(value))).collect()
 }
@@ -505,36 +478,32 @@ fn convert(value: &PropertyValue) -> Value {
         PropertyValue::Time(value) => Value::Time(*value),
         PropertyValue::Binary(value) => Value::Binary(value.buffer().to_vec()),
         PropertyValue::String8(value) => Value::String8(value.buffer().to_vec()),
-        PropertyValue::Unicode(value) => Value::Unicode(
-            value
-                .buffer()
-                .iter()
-                .flat_map(|unit| unit.to_le_bytes())
-                .collect(),
-        ),
+        PropertyValue::Unicode(value) => Value::Unicode(utf16le(value.buffer())),
+        PropertyValue::MultipleInteger16(values) => {
+            multiple(values, |v| Value::Integer((*v).into()))
+        }
+        PropertyValue::MultipleInteger32(values) => {
+            multiple(values, |v| Value::Integer((*v).into()))
+        }
+        PropertyValue::MultipleInteger64(values) => multiple(values, |v| Value::Integer(*v)),
+        PropertyValue::MultipleTime(values) => multiple(values, |v| Value::Time(*v)),
+        PropertyValue::MultipleBinary(values) => {
+            multiple(values, |v| Value::Binary(v.buffer().to_vec()))
+        }
+        PropertyValue::MultipleString8(values) => {
+            multiple(values, |v| Value::String8(v.buffer().to_vec()))
+        }
+        PropertyValue::MultipleUnicode(values) => {
+            multiple(values, |v| Value::Unicode(utf16le(v.buffer())))
+        }
         _ => Value::Other,
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+fn multiple<T>(values: &[T], convert: impl Fn(&T) -> Value) -> Value {
+    Value::Multiple(values.iter().map(convert).collect())
+}
 
-    #[test]
-    fn a_reader_panic_becomes_a_reason() {
-        let failure = guarded::<()>(|| panic!("index out of bounds"))
-            .err()
-            .unwrap();
-        assert_eq!(failure.reason, "the reader panicked: index out of bounds");
-        assert!(failure.panicked);
-    }
-
-    #[test]
-    fn a_reader_error_becomes_a_reason() {
-        let failure = guarded::<()>(|| Err(io::Error::other("Missing Sub-Node Tree on message")))
-            .err()
-            .unwrap();
-        assert_eq!(failure.reason, "Missing Sub-Node Tree on message");
-        assert!(!failure.panicked);
-    }
+fn utf16le(units: &[u16]) -> Vec<u8> {
+    units.iter().flat_map(|unit| unit.to_le_bytes()).collect()
 }

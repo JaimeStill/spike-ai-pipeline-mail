@@ -169,6 +169,7 @@ pub fn attachment(
         inline: integer(props, tag::ATTACH_FLAGS).is_some_and(|flags| flags & ATT_MHTML_REF != 0),
         method: method(props, &mut notes),
         size: content.map(|content| content.len() as u64),
+        message: None,
     };
     let mut all = strings.into_notes();
     all.append(&mut notes);

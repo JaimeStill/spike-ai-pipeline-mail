@@ -1,0 +1,34 @@
+[
+  {
+    "file": "tika/testMSG_att_msg.msg",
+    "repository": "https://github.com/apache/tika",
+    "commit": "48010f83ad3869119f54546cbb272fde88130283",
+    "path": "tika-parsers/tika-parsers-standard/tika-parsers-standard-modules/tika-parser-microsoft-module/src/test/resources/test-documents/testMSG_att_msg.msg",
+    "license": "Apache-2.0; tika/LICENSE and tika/NOTICE",
+    "sha256": "439a1fb117edd4c84b780fcf44bf1d5167166694130ced5743a70132a83c6970"
+  },
+  {
+    "file": "tika/testMSG_chinese.msg",
+    "repository": "https://github.com/apache/tika",
+    "commit": "48010f83ad3869119f54546cbb272fde88130283",
+    "path": "tika-parsers/tika-parsers-standard/tika-parsers-standard-modules/tika-parser-microsoft-module/src/test/resources/test-documents/testMSG_chinese.msg",
+    "license": "Apache-2.0; tika/LICENSE and tika/NOTICE",
+    "sha256": "b84c12748155dc57b41de02c6d43aa47e82b879020df070290633e9fd5ce7fdd"
+  },
+  {
+    "file": "tika/testMSG_forwarded.msg",
+    "repository": "https://github.com/apache/tika",
+    "commit": "48010f83ad3869119f54546cbb272fde88130283",
+    "path": "tika-parsers/tika-parsers-standard/tika-parsers-standard-modules/tika-parser-microsoft-module/src/test/resources/test-documents/testMSG_forwarded.msg",
+    "license": "Apache-2.0; tika/LICENSE and tika/NOTICE",
+    "sha256": "9f1d5e911e5fa182054e3034f836cd15adc64e1034fefb7026b80ee19280b599"
+  },
+  {
+    "file": "tika/test-outlook2003.msg",
+    "repository": "https://github.com/apache/tika",
+    "commit": "48010f83ad3869119f54546cbb272fde88130283",
+    "path": "tika-parsers/tika-parsers-standard/tika-parsers-standard-modules/tika-parser-microsoft-module/src/test/resources/test-documents/test-outlook2003.msg",
+    "license": "Apache-2.0; tika/LICENSE and tika/NOTICE",
+    "sha256": "ba3c378c3612a1a72a030f3c198ddede9304ffe466f871585956cb87b553d0b3"
+  }
+]

@@ -6,6 +6,8 @@
     reason = "each test crate compiles this module and uses only part of it"
 )]
 
+pub mod msg;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 

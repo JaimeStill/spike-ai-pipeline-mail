@@ -35,6 +35,17 @@ pub fn message_code_page(message: &Bag, store: u16) -> u16 {
     code_page(message, tag::MESSAGE_CODEPAGE).unwrap_or(store)
 }
 
+/// The code page a .msg message's PT_STRING8 values are in: its PidTagMessageCodepage, else its
+/// PidTagInternetCodepage, else, for a message embedded in another, the one its parent's are
+/// in, else [`FALLBACK`]. A .msg has no store whose code page could stand in, and the internet
+/// code page is the one the message was received in, which an ANSI client keeps its strings in.
+pub fn msg_code_page(message: &Bag, parent: Option<u16>) -> u16 {
+    code_page(message, tag::MESSAGE_CODEPAGE)
+        .or_else(|| code_page(message, tag::INTERNET_CODEPAGE))
+        .or(parent)
+        .unwrap_or(FALLBACK)
+}
+
 fn code_page(bag: &Bag, id: u16) -> Option<u16> {
     integer(bag, id).and_then(|value| u16::try_from(value).ok())
 }

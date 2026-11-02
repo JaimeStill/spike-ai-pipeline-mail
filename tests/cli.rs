@@ -161,16 +161,40 @@ fn an_unreadable_store_root_is_refused() {
     assert_eq!(out.stderr.lines().count(), 1);
 }
 
+/// A compound file cfb can't read is refused: here, a bare header, its sectors all zero.
 #[test]
-fn a_compound_file_is_refused_until_msg_is_read() {
+fn an_unreadable_compound_file_is_refused() {
     let mut bytes = vec![0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
     bytes.resize(512, 0);
     let msg = built("compound.msg", &bytes);
-    assert_refused(
-        &[&msg],
-        &format!(
-            "{}: a compound file, as a .msg is; .msg is not yet supported",
+    let out = run(&[&msg]);
+    assert_eq!(out.code, Some(3));
+    assert_eq!(out.stdout, "");
+    assert!(
+        out.stderr.starts_with(&format!(
+            "spike-ai-pipeline-mail: error: {}: the compound file can't be read: ",
             msg.display()
+        )),
+        "{}",
+        out.stderr
+    );
+    assert_eq!(out.stderr.lines().count(), 1);
+}
+
+/// A compound file that holds no MS-OXMSG message, here one with a Word document's stream, is
+/// refused, though it is named .msg.
+#[test]
+fn a_compound_file_that_is_not_a_message_is_refused() {
+    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("not-a-message.msg");
+    let mut file = cfb::create(&path).unwrap();
+    std::io::Write::write_all(&mut file.create_stream("/WordDocument").unwrap(), b"text").unwrap();
+    file.flush().unwrap();
+    assert_refused(
+        &[&path],
+        &format!(
+            "{}: a compound file, but not an Outlook message: \
+             it has no __properties_version1.0 stream",
+            path.display()
         ),
     );
 }

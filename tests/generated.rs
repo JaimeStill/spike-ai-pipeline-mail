@@ -1,16 +1,30 @@
-//! The generated fixtures under tests/fixtures/generated: the .pst stores built from the
-//! hand-written .eml sources, read through the binary and checked against the sources' truth, and
-//! the manifest checked against the committed files.
+//! The generated fixtures under tests/fixtures/generated: the .pst stores and the .msg files
+//! built from the hand-written .eml sources, read through the binary and checked against the
+//! sources' truth, and the manifest checked against the committed files.
 //!
-//! The truth (truth.json) is the sources'; what a store carries of it is stated here. PST Builder
-//! 1.3.0, through its EmlMapper, writes the subject, the sender's name and address, the To and Cc
-//! recipients, the times, the plain-text and HTML bodies and the attachments. It writes no Bcc, no
-//! sender address type, no threading fields, no transport headers and no conversation index, and
-//! it skips message/rfc822 parts, so a generated store has no embedded messages. Its importance
-//! and sensitivity are always normal, and its conversation topic is the subject. It writes each
-//! attachment by value, with no PidTagAttachExtension, and marks an inline one with
+//! The truth (truth.json) is the sources'; what each format carries of it is stated here. PST
+//! Builder 1.3.0, through its EmlMapper, writes the subject, the sender's name and address, the To
+//! and Cc recipients, the times, the plain-text and HTML bodies and the attachments. It writes no
+//! Bcc, no sender address type, no threading fields, no transport headers and no conversation
+//! index, and it skips message/rfc822 parts, so a generated store has no embedded messages. Its
+//! importance and sensitivity are always normal, and its conversation topic is the subject. It
+//! writes each attachment by value, with no PidTagAttachExtension, and marks an inline one with
 //! ATT_MHTML_REF. It stores the HTML body as UTF-8 with no PidTagInternetCodepage, and no RTF
 //! body, so a generated store has no HTML recovered from RTF.
+//!
+//! MsgKit 3.0.6, through Converter.ConvertEmlToMsg, writes the subject, the sender and every
+//! recipient, Bcc included, each with address type SMTP, the importance, the plain-text and HTML
+//! bodies, no RTF body, and the attachments by value. Its gaps, asserted as the files hold them:
+//! - the submit and delivery times are both the Date header, and the creation and modification
+//!   times are the time of conversion;
+//! - Message-ID, In-Reply-To and References are stored without their angle brackets, and
+//!   References keeps only its last ID;
+//! - the conversation topic is the subject less its "Re: " or "Fwd: ", and there is no
+//!   sensitivity and no conversation index;
+//! - the transport headers are MimeKit's rewriting of the source's;
+//! - an attachment's type comes from MsgKit's own table of extensions (MSGKIT_MIME_TYPES);
+//! - a message/rfc822 part is attached as a by-value .eml file named by its subject, not as an
+//!   embedded message, so a generated .msg has no embedded message either.
 
 mod common;
 
@@ -479,19 +493,24 @@ fn an_attachment_that_cant_be_read_is_skipped() {
     );
 }
 
-/// Each generated store's stdout equals its golden, byte for byte, so a regenerated store that
-/// reads differently shows here, though its bytes always differ (manifest.json's note). With
-/// UPDATE_GOLDEN set, the goldens are rewritten instead; review their diff before committing.
+/// Each generated store's and .msg's stdout equals its golden, byte for byte, so a regenerated
+/// file that reads differently shows here, though its bytes always differ (manifest.json's
+/// note). With UPDATE_GOLDEN set, the goldens are rewritten instead; review their diff before
+/// committing.
 #[test]
-fn stores_match_their_goldens() {
+fn outputs_match_their_goldens() {
     let goldens = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/generated");
     let layout = json_file("layout.json");
-    for store in layout["stores"].as_array().unwrap() {
-        let file = store["file"].as_str().unwrap();
-        let out = run(&[generated(file)]);
-        let golden = goldens.join(Path::new(file).with_extension("jsonl").file_name().unwrap());
+    let stores = layout["stores"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|store| store["file"].as_str().unwrap().to_owned());
+    for file in stores.chain(msg_files()) {
+        let out = run(&[generated(&file)]);
+        let golden = goldens.join(Path::new(&file).with_extension("jsonl"));
         if std::env::var_os("UPDATE_GOLDEN").is_some() {
-            std::fs::create_dir_all(&goldens).unwrap();
+            std::fs::create_dir_all(golden.parent().unwrap()).unwrap();
             std::fs::write(&golden, &out.stdout).unwrap();
             continue;
         }
@@ -606,23 +625,193 @@ fn the_manifest_records_the_pinned_tools() {
     }
 }
 
-/// The generated .msg files are committed for the .msg reader to come; until then the CLI sniffs
-/// each as a compound file and refuses it.
-#[test]
-fn generated_msg_files_are_refused_for_now() {
-    let manifest = json_file("manifest.json");
-    for output in manifest["outputs"].as_array().unwrap() {
-        let file = output["file"].as_str().unwrap();
-        if !file.ends_with(".msg") {
-            continue;
+/// The generated .msg files, by path under tests/fixtures/generated, one per layout.json source.
+fn msg_files() -> Vec<String> {
+    strings(&json_file("layout.json")["msg"])
+        .iter()
+        .map(|source| format!("msg/{}", source.replace(".eml", ".msg")))
+        .collect()
+}
+
+/// An Internet message ID as MsgKit stores it: without its angle brackets.
+fn bare(id: &str) -> Value {
+    json!(id.trim_start_matches('<').trim_end_matches('>'))
+}
+
+/// The attachment types MsgKit 3.0.6 writes in place of the source's, by filename: it types an
+/// attachment by its own table of extensions, which has no .csv.
+const MSGKIT_MIME_TYPES: &[(&str, &str)] = &[("отчёт.csv", "application/octet-stream")];
+
+/// One .msg message line against its source's truth, as the header comment says MsgKit carries
+/// it. The attached message's .eml file is checked by its own test, so its record is taken as
+/// read here but for its name, type and method.
+fn assert_msg_message(got: &Value, truth: &Value, source: &str) {
+    let expect = |field: &str, value: Option<&Value>| {
+        assert_eq!(got.get(field), value, "{source}: {field}");
+    };
+    let smtp = |address: &Value| {
+        let mut address = address.clone();
+        address["address_type"] = json!("SMTP");
+        address
+    };
+    expect("class", Some(&json!("IPM.Note")));
+    expect("subject", truth.get("subject"));
+    expect("sender", truth.get("sender").map(smtp).as_ref());
+    expect("to", recipients(truth.get("to")).as_ref());
+    expect("cc", recipients(truth.get("cc")).as_ref());
+    expect("bcc", recipients(truth.get("bcc")).as_ref());
+    // MsgKit takes the Date header for both the submit and the delivery time, and its time of
+    // conversion for the creation and modification times.
+    let date = &truth["date"];
+    expect("submit_time", Some(date));
+    expect("delivery_time", Some(date));
+    assert_eq!(
+        got["creation_time"], got["modification_time"],
+        "{source}: creation and modification times"
+    );
+    assert_ne!(&got["creation_time"], date, "{source}: creation time");
+    expect(
+        "importance",
+        Some(truth.get("importance").unwrap_or(&json!("normal"))),
+    );
+    expect("sensitivity", None);
+    let id = |field: &str| truth.get(field).map(|id| bare(id.as_str().unwrap()));
+    expect("message_id", id("message_id").as_ref());
+    expect("in_reply_to", id("in_reply_to").as_ref());
+    let last_reference = truth.get("references").map(|references| {
+        bare(
+            references
+                .as_str()
+                .unwrap()
+                .split_whitespace()
+                .last()
+                .unwrap(),
+        )
+    });
+    expect("references", last_reference.as_ref());
+    // The conversation topic is the subject less its reply or forward prefix.
+    let subject = truth["subject"].as_str().unwrap();
+    let topic = ["Re: ", "Fwd: "]
+        .iter()
+        .find_map(|prefix| subject.strip_prefix(prefix))
+        .unwrap_or(subject);
+    expect("conversation_topic", Some(&json!(topic)));
+    expect("conversation_index", None);
+    // MimeKit rewrites the transport headers, so only the Message-ID's line is checked.
+    let headers = got["transport_headers"].as_str().unwrap();
+    let message_id = truth["message_id"].as_str().unwrap();
+    assert!(
+        headers.contains(&format!("Message-ID: {message_id}\n")),
+        "{source}: transport headers"
+    );
+
+    let mut expected: Vec<Value> = attachments(truth)
+        .map(|list| list.as_array().unwrap().clone())
+        .unwrap_or_default();
+    for record in &mut expected {
+        if let Some((_, mime)) = MSGKIT_MIME_TYPES
+            .iter()
+            .find(|(name, _)| record["filename"] == *name)
+        {
+            record["mime_type"] = json!(mime);
         }
-        let out = run(&[generated(file)]);
-        assert_eq!(out.code, Some(3), "{file}");
-        assert!(
-            out.stderr
-                .contains("a compound file, as a .msg is; .msg is not yet supported"),
-            "{file}: {}",
-            out.stderr
+    }
+    let embedded = truth.get("embedded").and_then(Value::as_array);
+    for message in embedded.into_iter().flatten() {
+        let read = &got["attachments"][expected.len()];
+        expected.push(json!({
+            "file": read["file"],
+            "filename": format!("{}.eml", message["subject"].as_str().unwrap()),
+            "mime_type": "message/rfc822",
+            "inline": false,
+            "method": "by_value",
+            "size": read["size"],
+        }));
+    }
+    expect(
+        "attachments",
+        (!expected.is_empty())
+            .then_some(Value::Array(expected))
+            .as_ref(),
+    );
+
+    for body in ["text", "html"] {
+        let got = got["body"]
+            .get(body)
+            .map(|text| text.as_str().unwrap().replace("\r\n", "\n"));
+        assert_eq!(
+            got.as_deref(),
+            truth["body"].get(body).map(|t| t.as_str().unwrap()),
+            "{source}: body {body}"
         );
     }
+    assert_eq!(got["body"].get("rtf"), None, "{source}: body rtf");
+    let derived = got["body"]["derived"].as_object().unwrap();
+    assert_eq!(
+        derived.keys().collect::<Vec<_>>(),
+        ["markdown"],
+        "{source}: derived bodies"
+    );
+}
+
+/// Each generated .msg, read through the binary, is a store line and one message line that
+/// matches its source's truth, without a warning.
+#[test]
+fn msg_files_match_the_eml_truth() {
+    let truth = json_file("truth.json");
+    let sources = strings(&json_file("layout.json")["msg"]);
+    let mut created = BTreeSet::new();
+    for (file, source) in msg_files().iter().zip(&sources) {
+        let out = run(&[generated(file)]);
+        assert_eq!(out.code, Some(0), "{file}: {}", out.stderr);
+        assert_eq!(out.stderr, "", "{file}");
+        let lines = out.lines();
+        assert_eq!(lines.len(), 2, "{file}");
+        assert_eq!(
+            lines[0],
+            json!({"line": "store", "schema": "1", "format": "msg"}),
+            "{file}"
+        );
+        assert_eq!(lines[1]["line"], "message", "{file}");
+        assert_msg_message(&lines[1], &truth["messages"][source], source);
+        created.insert(lines[1]["creation_time"].as_str().unwrap().to_owned());
+    }
+    // One generator run converted them all, within a second.
+    assert_eq!(created.len(), 1, "{created:?}");
+}
+
+/// MsgKit 3.0.6 attaches a forwarded message (message/rfc822) as a by-value .eml file named by
+/// its subject, not as an embedded message, so a generated .msg has none: the file holds the
+/// source's attached message, which the truth's embedded entry describes. With --attachments,
+/// each record's file is written by content.
+#[test]
+fn msgkit_attaches_a_forwarded_message_as_an_eml_file() {
+    let truth = &json_file("truth.json")["messages"]["08-forward-attached-message.eml"];
+    let embedded = &truth["embedded"][0];
+    let dir = scratch("generated-msg-attachments");
+    let file = generated("msg/08-forward-attached-message.msg");
+    let out = run(&[file.as_os_str(), "--attachments".as_ref(), dir.as_os_str()]);
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
+    let lines = out.lines();
+    let mut expected = files_named(&lines);
+    expected.sort_unstable();
+    assert_eq!(names(&dir), expected);
+    for name in &expected {
+        let (sha, _) = name.split_once('.').unwrap();
+        assert_eq!(sha256(&dir.join(name)), sha, "{name}");
+    }
+    let record = &lines[1]["attachments"][1];
+    assert_eq!(record["method"], "by_value");
+    assert!(record.get("message").is_none());
+    let eml = std::fs::read_to_string(dir.join(record["file"].as_str().unwrap()))
+        .unwrap()
+        .replace("\r\n", "\n");
+    for line in [
+        format!("Message-ID: {}", embedded["message_id"].as_str().unwrap()),
+        format!("Subject: {}", embedded["subject"].as_str().unwrap()),
+    ] {
+        assert!(eml.contains(&format!("{line}\n")), "{line}: {eml}");
+    }
+    let (_, body) = eml.split_once("\n\n").unwrap();
+    assert_eq!(body, embedded["body"]["text"]);
 }

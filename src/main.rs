@@ -8,10 +8,12 @@
 
 mod codepage;
 mod files;
+mod guard;
 mod jsonl;
 mod mapping;
 mod markdown;
 mod model;
+mod msg;
 mod props;
 mod pst;
 mod rtf;
@@ -114,11 +116,7 @@ fn run(args: &[OsString]) -> Result<(), Fault> {
                  only versions 14 and 15 (ANSI) and 23 (Unicode) are"
             )));
         }
-        Format::CompoundFile => {
-            return Err(Fault::Refused(format!(
-                "{input}: a compound file, as a .msg is; .msg is not yet supported"
-            )));
-        }
+        Format::CompoundFile => msg::read(path, &mut out, &mut files)?,
         Format::Unknown => {
             return Err(Fault::Refused(format!(
                 "{input}: neither a .pst nor a .msg"
@@ -179,6 +177,13 @@ fn parse(args: &[OsString]) -> Result<Command, Fault> {
 /// Writes one warning line: "spike-ai-pipeline-mail: warning: <where>: <what>".
 pub fn warn(place: &str, what: &str) {
     eprintln!("{NAME}: warning: {place}: {what}");
+}
+
+/// Writes one warning line for each of a record's notes.
+pub fn warn_all(place: &str, notes: Vec<String>) {
+    for note in notes {
+        warn(place, &note);
+    }
 }
 
 /// The message a panic was raised with.

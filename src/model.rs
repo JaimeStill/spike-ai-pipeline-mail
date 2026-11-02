@@ -41,9 +41,12 @@ pub struct Folder {
     pub container_class: Option<String>,
 }
 
-/// One item, whatever its message class.
+/// One item, whatever its message class: a message line, or a message embedded in another,
+/// nested under its attachment record.
 #[derive(Default, Serialize)]
 pub struct Message {
+    /// "message" on a message line. A nested message is no line: its is empty and left out.
+    #[serde(skip_serializing_if = "str::is_empty")]
     pub line: &'static str,
     /// In a .pst, the message's node id.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -164,8 +167,8 @@ impl Derived {
 #[derive(Default, Serialize)]
 pub struct Attachment {
     /// The name of its content's file: the lowercase hex SHA-256 of the bytes, plus the stored
-    /// extension when it is short and alphanumeric. An attachment whose content isn't read (by
-    /// reference, or an embedded message in a .pst) has none.
+    /// extension when it is short and alphanumeric. An attachment whose content isn't a file (by
+    /// reference, or an embedded message, which a .msg nests under `message`) has none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file: Option<String>,
     /// The long filename, else the short one.
@@ -185,6 +188,10 @@ pub struct Attachment {
     /// The content's size in bytes, when its content is read.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
+    /// In a .msg, an embedded message's own message, with its bodies and its own attachments,
+    /// nested to any depth the reader allows. A .pst's embedded messages have none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<Box<Message>>,
 }
 
 /// A record that couldn't be read, in place of its line.
@@ -199,7 +206,8 @@ pub struct Skipped {
     /// For an attachment, the node id of its message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<u32>,
-    /// The record's own node id; an attachment's is its node id within its message.
+    /// In a .pst, the record's own node id; an attachment's is its node id within its
+    /// message. In a .msg, an attachment's number, the one its storage's name ends in.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u32>,
     pub reason: String,
