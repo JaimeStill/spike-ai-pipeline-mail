@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# currency reports every dependency and toolchain that trails its latest
+# currency reports every dependency, toolchain, and Action pin that trails its latest
 # release, one line each, and exits non-zero when it reports any. It reads the
-# network and writes nothing outside generator/obj/. Run it through `mise run currency`.
+# network, GitHub's API through gh among it, and writes nothing outside
+# generator/obj/. Run it through `mise run currency`.
 #
 # Each scan captures its command's output in a variable before reading it, so
 # under set -e a scan command that fails fails currency instead of reporting
@@ -40,5 +41,20 @@ packages=$(cd generator && MISE_ENV=fixtures mise exec -- dotnet list package --
 while read -r line; do
 	[ -n "$line" ] && report "$line"
 done <<<"$packages"
+
+# GitHub Actions pinned below the action's latest release. Each is pinned by full
+# commit SHA with its release's tag in a comment, "uses: <action>@<sha> # <tag>";
+# the tag is what is compared, and a pin without one is reported too.
+uses=$(sed -nE 's/^[ -]*uses: *([^ ]+)@([^ ]+)( *# *([^ ]+))?.*$/\1 \2 \4/p' .github/workflows/*.yml | sort -u)
+while read -r action sha tag; do
+	[ -n "$action" ] || continue
+	if [ -z "$tag" ]; then
+		report ".github/workflows: $action@$sha has no release tag in a comment"
+		continue
+	fi
+	repo=$(echo "$action" | cut -d/ -f1,2)
+	latest=$(gh api "repos/$repo/releases/latest" --jq .tag_name)
+	[ "$tag" = "$latest" ] || report ".github/workflows: $action $tag -> $latest"
+done <<<"$uses"
 
 exit "$stale"

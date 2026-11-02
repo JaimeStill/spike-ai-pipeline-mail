@@ -89,7 +89,8 @@ fn fail(code: u8, reason: &str) -> ExitCode {
 fn run(args: &[OsString]) -> Result<(), Fault> {
     let args = match parse(args)? {
         Command::Version => {
-            println!("{NAME} {}", env!("CARGO_PKG_VERSION"));
+            // The bare version, which the release compares with its tag's.
+            println!("{}", env!("CARGO_PKG_VERSION"));
             return Ok(());
         }
         Command::Read(args) => args,

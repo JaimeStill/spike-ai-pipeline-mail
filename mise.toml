@@ -19,5 +19,5 @@ cargo build --release --locked --target "$target"
 '''
 
 [tasks.currency]
-description = "Report every crate and mise tool behind its latest; writes nothing"
+description = "Report every crate, mise tool, and GitHub Action pin behind its latest; writes nothing"
 run = "scripts/currency.sh"

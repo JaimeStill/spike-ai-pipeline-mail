@@ -9,13 +9,11 @@ const USAGE: &str = "usage: spike-ai-pipeline-mail [--attachments <dir>] <input>
 ";
 
 #[test]
-fn version_prints_the_crate_version() {
+fn version_prints_the_bare_crate_version() {
     let out = run(&["--version"]);
     assert_eq!(out.code, Some(0));
-    assert_eq!(
-        out.stdout,
-        format!("spike-ai-pipeline-mail {}\n", env!("CARGO_PKG_VERSION"))
-    );
+    assert_eq!(out.stdout, format!("{}\n", env!("CARGO_PKG_VERSION")));
+    assert_eq!(out.stderr, "");
 }
 
 /// Each usage error exits 2 with its reason and the usage on stderr, and nothing on stdout.
