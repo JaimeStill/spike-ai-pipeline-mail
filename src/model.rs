@@ -94,6 +94,9 @@ pub struct Message {
     pub conversation_index: Option<String>,
     #[serde(skip_serializing_if = "Body::is_empty")]
     pub body: Body,
+    /// In the attachment table's order, less those that couldn't be read.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<Attachment>,
 }
 
 /// A sender or a recipient.
@@ -127,6 +130,33 @@ impl Body {
     }
 }
 
+/// One attachment of a message.
+#[derive(Default, Serialize)]
+pub struct Attachment {
+    /// The name of its content's file: the lowercase hex SHA-256 of the bytes, plus the stored
+    /// extension when it is short and alphanumeric. An attachment whose content isn't read (by
+    /// reference, or an embedded message in a .pst) has none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+    /// The long filename, else the short one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filename: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// As stored, without angle brackets.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_id: Option<String>,
+    /// Whether the HTML body refers to it, which is how an inline disposition is stored.
+    pub inline: bool,
+    /// "none", "by_value", "by_reference", "by_reference_only", "embedded_message", "storage"
+    /// or "by_web_reference".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub method: Option<&'static str>,
+    /// The content's size in bytes, when its content is read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+}
+
 /// A record that couldn't be read, in place of its line.
 #[derive(Serialize)]
 pub struct Skipped {
@@ -136,7 +166,10 @@ pub struct Skipped {
     /// The node id of the folder the record is in; a skipped folder names its parent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub folder: Option<u32>,
-    /// The record's own node id.
+    /// For an attachment, the node id of its message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<u32>,
+    /// The record's own node id; an attachment's is its node id within its message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u32>,
     pub reason: String,

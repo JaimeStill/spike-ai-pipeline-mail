@@ -1,11 +1,11 @@
 //! Reading .pst stores: the committed public stores against their goldens and the hand truth,
-//! and the skip policy on stores corrupted in the test.
+//! their attachments, and the skip policy on stores corrupted in the test.
 
 mod common;
 
 use std::path::Path;
 
-use common::{built, fixture, run, sha256};
+use common::{built, fixture, names, run, scratch, sha256};
 use serde_json::Value;
 
 /// The committed public stores, by path under tests/fixtures/pst.
@@ -203,11 +203,140 @@ fn a_message_outlook_pst_cannot_read_is_skipped() {
             })],
             "{store}"
         );
+        let skips: Vec<&str> = out
+            .stderr
+            .lines()
+            .filter(|line| line.contains("skipped"))
+            .collect();
         assert_eq!(
-            out.stderr,
-            "spike-ai-pipeline-mail: warning: /Top of Personal Folders/Contacts, message \
-             2097188: skipped: Missing Sub-Node Tree on message\n"
+            skips,
+            [
+                "spike-ai-pipeline-mail: warning: /Top of Personal Folders/Contacts, message \
+              2097188: skipped: Missing Sub-Node Tree on message"
+            ]
         );
+    }
+}
+
+/// Each message line's attachment records, by message id.
+fn attachments(lines: &[Value]) -> Vec<(u64, Vec<Value>)> {
+    lines
+        .iter()
+        .filter(|l| l["line"] == "message")
+        .filter_map(|l| {
+            let list = l.get("attachments")?.as_array()?.clone();
+            Some((l["id"].as_u64().unwrap(), list))
+        })
+        .collect()
+}
+
+/// An embedded message in a .pst is never opened: outlook-pst 1.2.0 deadlocks on one, and these
+/// stores' attachment objects omit PidTagAttachMethod. Each is known by its attachment table
+/// row, which does give method 5, and is listed from that row with no content and a warning
+/// naming it. These rows hold no filename, mime tag or content-id, so the record is its method
+/// and inline flag alone.
+#[test]
+fn embedded_messages_are_listed_with_a_warning() {
+    let embedded = serde_json::json!({ "inline": false, "method": "embedded_message" });
+    for (store, place, message, ids) in [
+        (
+            "java-libpst/dist-list.pst",
+            "/Top of Personal Folders/Calendar",
+            2097348,
+            &[32933, 32997][..],
+        ),
+        (
+            "tika/testPST.pst",
+            "/Début du fichier de données Outlook",
+            2097380,
+            &[32805][..],
+        ),
+    ] {
+        let dir = scratch(&format!("embedded-{}", store.replace('/', "-")));
+        let path = fixture(&format!("pst/{store}"));
+        let out = run(&[path.as_os_str(), "--attachments".as_ref(), dir.as_os_str()]);
+        assert_eq!(out.code, Some(0), "{store}: {}", out.stderr);
+        let expected = vec![embedded.clone(); ids.len()];
+        assert_eq!(attachments(&out.lines()), [(message, expected)], "{store}");
+        for id in ids {
+            let warning = format!(
+                "spike-ai-pipeline-mail: warning: {place}, message {message}, attachment {id}: \
+                 an embedded message (attach method 5), listed without its content: \
+                 outlook-pst 1.2.0 can't open one"
+            );
+            assert!(
+                out.stderr.lines().any(|l| l == warning),
+                "{store}: {warning}"
+            );
+        }
+        assert_eq!(
+            names(&dir),
+            Vec::<String>::new(),
+            "{store}: no content written"
+        );
+    }
+}
+
+/// libyal's store has two messages with the same eleven pictures: 22 records, and with
+/// --attachments, eleven files, each content written once.
+#[test]
+fn each_distinct_content_is_written_once() {
+    let dir = scratch("dedup");
+    let store = fixture("pst/libyal/outlook.pst");
+    let out = run(&[store.as_os_str(), "--attachments".as_ref(), dir.as_os_str()]);
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
+    let records: Vec<Value> = attachments(&out.lines())
+        .into_iter()
+        .flat_map(|(_, list)| list)
+        .collect();
+    assert_eq!(records.len(), 22);
+    let mut files: Vec<String> = records
+        .iter()
+        .map(|r| {
+            assert_eq!(r["method"], "by_value");
+            r["file"].as_str().unwrap().to_owned()
+        })
+        .collect();
+    files.sort_unstable();
+    files.dedup();
+    assert_eq!(files.len(), 11);
+    assert_eq!(names(&dir), files);
+    for record in &records {
+        let name = record["file"].as_str().unwrap();
+        let path = dir.join(name);
+        assert_eq!(format!("{}.jpg", sha256(&path)), name);
+        assert_eq!(
+            Some(std::fs::metadata(&path).unwrap().len()),
+            record["size"].as_u64()
+        );
+    }
+}
+
+/// A panic inside outlook-pst while it holds its file's mutex poisons the mutex; the store is
+/// reopened, so the records after the panic are still read. The byte flipped here makes
+/// outlook-pst multiply past u32 while reading Inbox's message; the tests run the debug binary,
+/// whose overflow checks make that a panic (a release build reads a different error there).
+#[test]
+fn records_after_a_reader_panic_are_still_read() {
+    let mut bytes = std::fs::read(fixture("pst/libyal/outlook.pst")).unwrap();
+    bytes[29699] ^= 0xFF;
+    let out = run(&[built("panic.pst", &bytes)]);
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
+    assert_eq!(
+        out.stderr,
+        "spike-ai-pipeline-mail: warning: /Top of Personal Folders/Inbox, message 2097188: \
+         skipped: the reader panicked: attempt to multiply with overflow\n"
+    );
+    // Every line but the panicked message's is the intact store's.
+    let intact = run(&[fixture("pst/libyal/outlook.pst")]).lines();
+    let lines = out.lines();
+    assert_eq!(lines.len(), intact.len());
+    for (got, want) in lines.iter().zip(&intact) {
+        if want["line"] == "message" && want["id"] == 2097188 {
+            assert_eq!(got["line"], "skipped");
+        } else {
+            assert_eq!(got, want);
+        }
     }
 }
 

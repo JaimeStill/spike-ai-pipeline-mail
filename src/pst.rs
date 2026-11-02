@@ -1,61 +1,67 @@
 //! The .pst reader: outlook-pst opens the store, and the walk writes the store line, then each
 //! folder depth-first from the IPM subtree's root, its messages in contents-table order before
-//! its subfolders.
+//! its subfolders, each message's attachments in its attachment table's order.
 //!
-//! Every record is read whole inside [`guarded`] before its line is written, so a folder or
-//! message that fails, or panics, inside outlook-pst becomes a skipped line and a warning, and
-//! the walk goes on. Known outlook-pst 1.2.0 faults this has to absorb:
+//! Every record is read whole inside [`guarded`] before its line is written, so a folder,
+//! message or attachment that fails, or panics, inside outlook-pst becomes a skipped line and a
+//! warning, and the walk goes on. Known outlook-pst 1.2.0 faults this has to absorb:
 //! - a message node without a sub-node tree fails ("Missing Sub-Node Tree on message"), as the
 //!   contacts of java-libpst's dist-list.pst and passworded.pst do;
 //! - opening an embedded-message attachment (method 5) locks a std Mutex the reader already
-//!   holds and deadlocks, so no attachment is ever opened by its method alone. This slice opens
-//!   no attachments.
+//!   holds and deadlocks, and real stores' embedded messages, as in dist-list.pst and Tika's
+//!   testPST.pst, omit PidTagAttachMethod on the attachment object, so opening them fails. The
+//!   attach method is read from the attachment table instead, and an attachment whose row says
+//!   method 5, or gives no method, is never opened: it is listed from its row, without
+//!   content, with a warning;
+//! - a panic while outlook-pst holds its file's mutex poisons the mutex, and every later read
+//!   fails with "Failed to lock PST file". After a panic the walk reopens the store, so the
+//!   records after it are still read.
 
 use std::fs::File;
 use std::io::{self, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use outlook_pst::ltp::prop_context::PropertyValue;
-use outlook_pst::ltp::table_context::TableContext;
-use outlook_pst::messaging::message::Message as PstMessage;
+use outlook_pst::ltp::table_context::{TableContext, TableRowId};
+use outlook_pst::messaging::attachment::{
+    AnsiAttachment, Attachment, AttachmentData, UnicodeAttachment,
+};
+use outlook_pst::messaging::message::{AnsiMessage, Message as PstMessage, UnicodeMessage};
 use outlook_pst::messaging::store::{AnsiStore, EntryId, Store, UnicodeStore};
 use outlook_pst::ndb::node_id::NodeId;
 use outlook_pst::{AnsiPstFile, UnicodePstFile};
 
 use crate::codepage::{message_code_page, store_code_page};
+use crate::files::Files;
 use crate::jsonl::Lines;
 use crate::props::{Bag, Value, integer, tag};
 use crate::sniff::Encoding;
 use crate::{Fault, mapping, model, panic_text, warn};
 
-/// Reads the store at `path`, whose header names `encoding`, and writes its lines to `out`.
-pub fn read(path: &Path, encoding: Encoding, out: &mut Lines<impl Write>) -> Result<(), Fault> {
-    let refuse = |what: &'static str| move |reason| Fault::Refused(format!("{what}: {reason}"));
-    let file =
-        File::open(path).map_err(|err| Fault::Refused(format!("{}: {err}", path.display())))?;
-    let store: Rc<dyn Store> = match encoding {
-        Encoding::Unicode => {
-            let pst = guarded(|| UnicodePstFile::read_from(Box::new(file)))
-                .map_err(refuse("the PST header can't be read"))?;
-            guarded(|| UnicodeStore::read(Rc::new(pst)))
-                .map_err(refuse("the store's root can't be read"))?
-        }
-        Encoding::Ansi => {
-            let pst = guarded(|| AnsiPstFile::read_from(Box::new(file)))
-                .map_err(refuse("the PST header can't be read"))?;
-            guarded(|| AnsiStore::read(Rc::new(pst)))
-                .map_err(refuse("the store's root can't be read"))?
-        }
-    };
-    let root = guarded(|| {
-        let entry_id = store.properties().ipm_sub_tree_entry_id()?;
-        read_folder(&store, &entry_id)
-    })
-    .map_err(refuse("the IPM subtree can't be read"))?;
+/// PidTagAttachMethod's afEmbeddedMessage (MS-OXCMSG 2.2.2.9).
+const AF_EMBEDDED_MESSAGE: i64 = 5;
 
-    let props = bag(store.properties().iter());
+/// Reads the store at `path`, whose header names `encoding`, writes its lines to `out`, and
+/// its attachments' contents through `files`.
+pub fn read(
+    path: &Path,
+    encoding: Encoding,
+    out: &mut Lines<impl Write>,
+    files: &mut Files,
+) -> Result<(), Fault> {
+    let pst = Pst::open(path, encoding).map_err(Fault::Refused)?;
+    let root = guarded(|| {
+        let entry_id = pst.store().properties().ipm_sub_tree_entry_id()?;
+        read_folder(pst.store(), &entry_id)
+    })
+    .map_err(|failure| {
+        Fault::Refused(format!("the IPM subtree can't be read: {}", failure.reason))
+    })?;
+    files.create()?;
+
+    let props = bag(pst.store().properties().iter());
     let code_page = store_code_page(&props);
     let (display_name, notes) = mapping::store_name(&props, code_page);
     warn_all("store", notes);
@@ -70,11 +76,90 @@ pub fn read(path: &Path, encoding: Encoding, out: &mut Lines<impl Write>) -> Res
     .map_err(Fault::Output)?;
 
     let mut walk = Walk {
-        store,
+        path: path.to_path_buf(),
+        encoding,
+        pst,
+        reopened: 0,
         code_page,
         out,
+        files,
     };
     walk.folder(root, None, Vec::new())
+}
+
+/// The store, by its file's encoding: outlook-pst opens an attachment only through the
+/// concrete message type, which only the concrete store opens.
+enum Pst {
+    Unicode(Rc<UnicodeStore>),
+    Ansi(Rc<AnsiStore>),
+}
+
+impl Pst {
+    /// Opens the file at `path` and reads its header and its store's root; a failure is the
+    /// refusal's reason.
+    fn open(path: &Path, encoding: Encoding) -> Result<Self, String> {
+        let file = File::open(path).map_err(|err| format!("{}: {err}", path.display()))?;
+        let failed = |what: &str| {
+            let what = what.to_owned();
+            move |failure: Failure| format!("{what}: {}", failure.reason)
+        };
+        let header = "the PST header can't be read";
+        let root = "the store's root can't be read";
+        Ok(match encoding {
+            Encoding::Unicode => {
+                let pst = guarded(|| UnicodePstFile::read_from(Box::new(file)))
+                    .map_err(failed(header))?;
+                Self::Unicode(guarded(|| UnicodeStore::read(Rc::new(pst))).map_err(failed(root))?)
+            }
+            Encoding::Ansi => {
+                let pst =
+                    guarded(|| AnsiPstFile::read_from(Box::new(file))).map_err(failed(header))?;
+                Self::Ansi(guarded(|| AnsiStore::read(Rc::new(pst))).map_err(failed(root))?)
+            }
+        })
+    }
+
+    fn store(&self) -> &dyn Store {
+        match self {
+            Self::Unicode(store) => &**store,
+            Self::Ansi(store) => &**store,
+        }
+    }
+
+    fn open_message(&self, id: u32) -> io::Result<OpenMessage> {
+        let entry_id = self.store().properties().make_entry_id(NodeId::from(id))?;
+        Ok(match self {
+            Self::Unicode(store) => {
+                OpenMessage::Unicode(UnicodeMessage::read(store.clone(), &entry_id, None)?)
+            }
+            Self::Ansi(store) => {
+                OpenMessage::Ansi(AnsiMessage::read(store.clone(), &entry_id, None)?)
+            }
+        })
+    }
+}
+
+/// A message open in its store, for its attachments to be opened from.
+enum OpenMessage {
+    Unicode(Rc<UnicodeMessage>),
+    Ansi(Rc<AnsiMessage>),
+}
+
+impl OpenMessage {
+    fn message(&self) -> &dyn PstMessage {
+        match self {
+            Self::Unicode(message) => &**message,
+            Self::Ansi(message) => &**message,
+        }
+    }
+
+    fn attachment(&self, id: u32) -> io::Result<Rc<dyn Attachment>> {
+        let id = NodeId::from(id);
+        Ok(match self {
+            Self::Unicode(message) => UnicodeAttachment::read(message.clone(), id, None)?,
+            Self::Ansi(message) => AnsiAttachment::read(message.clone(), id, None)?,
+        })
+    }
 }
 
 /// A folder read whole: its properties and the node ids of its messages and subfolders.
@@ -85,27 +170,40 @@ struct FolderData {
     subfolders: Vec<u32>,
 }
 
-fn read_folder(store: &Rc<dyn Store>, entry_id: &EntryId) -> io::Result<FolderData> {
+fn read_folder(store: &dyn Store, entry_id: &EntryId) -> io::Result<FolderData> {
     let folder = store.open_folder(entry_id)?;
-    let rows = |table: Option<&Rc<dyn TableContext>>| {
-        table
-            .map(|table| table.rows_matrix().map(|row| u32::from(row.id())).collect())
-            .unwrap_or_default()
-    };
     Ok(FolderData {
         id: u32::from(folder.properties().node_id()),
         props: bag(folder.properties().iter()),
-        messages: rows(folder.contents_table()),
-        subfolders: rows(folder.hierarchy_table()),
+        messages: row_ids(folder.contents_table()),
+        subfolders: row_ids(folder.hierarchy_table()),
     })
 }
 
-/// A message read whole: its properties and its recipient table's rows.
-fn read_message(store: &Rc<dyn Store>, id: u32) -> io::Result<(Bag, Vec<Bag>)> {
-    let entry_id = store.properties().make_entry_id(NodeId::from(id))?;
-    let message = store.open_message(&entry_id, None)?;
-    let props = bag(message.properties().iter());
-    Ok((props, recipients(&*message)?))
+fn row_ids(table: Option<&Rc<dyn TableContext>>) -> Vec<u32> {
+    table
+        .map(|table| table.rows_matrix().map(|row| u32::from(row.id())).collect())
+        .unwrap_or_default()
+}
+
+/// A message read whole but for its attachments: the open message, its properties, its
+/// recipient table's rows, and its attachments' node ids, in its attachment table's order.
+struct MessageData {
+    message: OpenMessage,
+    props: Bag,
+    recipients: Vec<Bag>,
+    attachments: Vec<u32>,
+}
+
+fn read_message(pst: &Pst, id: u32) -> io::Result<MessageData> {
+    let message = pst.open_message(id)?;
+    let inner = message.message();
+    Ok(MessageData {
+        props: bag(inner.properties().iter()),
+        recipients: recipients(inner)?,
+        attachments: row_ids(inner.attachment_table()),
+        message,
+    })
 }
 
 fn recipients(message: &dyn PstMessage) -> io::Result<Vec<Bag>> {
@@ -128,10 +226,81 @@ fn recipients(message: &dyn PstMessage) -> io::Result<Vec<Bag>> {
         .collect()
 }
 
+/// An attachment read whole: its properties, its content when it has some, and whether it was
+/// opened or only listed from its attachment table row, with the reader's notes.
+struct AttachmentRead {
+    props: Bag,
+    content: Option<Vec<u8>>,
+    opened: bool,
+    notes: Vec<String>,
+}
+
+/// Reads attachment `id` of `message`. Its attachment table row gives the attach method; an
+/// attachment whose row says method 5, or gives none, is never opened (the module's comment
+/// says why) and is read from its row alone.
+fn read_attachment(message: &OpenMessage, id: u32) -> io::Result<AttachmentRead> {
+    let table = message
+        .message()
+        .attachment_table()
+        .ok_or_else(|| io::Error::other("the message has no attachment table"))?;
+    let context = table.context();
+    let row = table.find_row(TableRowId::new(id))?;
+    let mut props = Bag::new();
+    let mut notes = Vec::new();
+    for (column, value) in context.columns().iter().zip(row.columns(context)?) {
+        let Some(value) = value else { continue };
+        // A column outlook-pst can't read, as the empty PidTagAttachFilename of libyal's
+        // store's rows is, costs only that column.
+        match table.read_column(&value, column.prop_type()) {
+            Ok(value) => {
+                props.insert(column.prop_id(), convert(&value));
+            }
+            Err(err) => notes.push(format!(
+                "attachment table column 0x{:04X} can't be read ({err}); left out",
+                column.prop_id()
+            )),
+        }
+    }
+    if integer(&props, tag::ATTACH_METHOD).is_none_or(|method| method == AF_EMBEDDED_MESSAGE) {
+        return Ok(AttachmentRead {
+            props,
+            content: None,
+            opened: false,
+            notes,
+        });
+    }
+    // Opened, the attachment's own properties stand in for its row's, notes and all. Its
+    // content is kept apart from them, as stored: PidTagAttachDataBinary for afByValue, the
+    // storage's bytes for afStorage; outlook-pst gives none for the by-reference methods.
+    let attachment = message.attachment(id)?;
+    let props = attachment
+        .properties()
+        .iter()
+        .filter(|(id, _)| **id != tag::ATTACH_DATA)
+        .map(|(id, value)| (*id, convert(value)))
+        .collect();
+    let content = match attachment.data() {
+        Some(AttachmentData::Binary(data)) => Some(data.buffer().to_vec()),
+        _ => None,
+    };
+    Ok(AttachmentRead {
+        props,
+        content,
+        opened: true,
+        notes: Vec::new(),
+    })
+}
+
 struct Walk<'a, W: Write> {
-    store: Rc<dyn Store>,
+    path: PathBuf,
+    encoding: Encoding,
+    pst: Pst,
+    /// How many times the store has been reopened after a panic. A message opened before the
+    /// last reopen holds the poisoned store, so it is opened again before its next attachment.
+    reopened: u32,
     code_page: u16,
     out: &'a mut Lines<W>,
+    files: &'a mut Files,
 }
 
 impl<W: Write> Walk<'_, W> {
@@ -160,48 +329,124 @@ impl<W: Write> Walk<'_, W> {
             self.message(data.id, id, &place)?;
         }
         for id in data.subfolders {
-            let read = guarded(|| {
-                let entry_id = self.store.properties().make_entry_id(NodeId::from(id))?;
-                read_folder(&self.store, &entry_id)
+            let read = self.read(|pst| {
+                let entry_id = pst.store().properties().make_entry_id(NodeId::from(id))?;
+                read_folder(pst.store(), &entry_id)
             });
             match read {
                 Ok(sub) => self.folder(sub, Some(data.id), path.clone())?,
-                Err(reason) => self.skip("folder", data.id, id, &place, reason)?,
+                Err(reason) => {
+                    warn(
+                        &format!("{place}, folder {id}"),
+                        &format!("skipped: {reason}"),
+                    );
+                    self.skipped("folder", data.id, None, id, reason)?;
+                }
             }
         }
         Ok(())
     }
 
+    /// Writes one message's line, its attachments' files before it, and after it a skipped line
+    /// for each attachment that couldn't be read.
     fn message(&mut self, folder: u32, id: u32, place: &str) -> Result<(), Fault> {
-        let (props, recipients) = match guarded(|| read_message(&self.store, id)) {
-            Ok(read) => read,
-            Err(reason) => return self.skip("message", folder, id, place, reason),
+        let place = format!("{place}, message {id}");
+        let data = match self.read(|pst| read_message(pst, id)) {
+            Ok(data) => data,
+            Err(reason) => {
+                warn(&place, &format!("skipped: {reason}"));
+                return self.skipped("message", folder, None, id, reason);
+            }
         };
-        let code_page = message_code_page(&props, self.code_page);
-        let (mut message, notes) = mapping::message(&props, &recipients, code_page);
+        let code_page = message_code_page(&data.props, self.code_page);
+        let (mut message, notes) = mapping::message(&data.props, &data.recipients, code_page);
         message.id = Some(id);
         message.folder = Some(folder);
-        warn_all(&format!("{place}, message {id}"), notes);
-        self.out.write(&message).map_err(Fault::Output)
+        warn_all(&place, notes);
+
+        let mut open = data.message;
+        let mut opened_in = self.reopened;
+        let mut skipped = Vec::new();
+        for attachment in data.attachments {
+            let here = format!("{place}, attachment {attachment}");
+            let reopened = self.reopened;
+            let read = self.read(|pst| {
+                if opened_in != reopened {
+                    open = pst.open_message(id)?;
+                    opened_in = reopened;
+                }
+                read_attachment(&open, attachment)
+            });
+            let read = match read {
+                Ok(read) => read,
+                Err(reason) => {
+                    warn(&here, &format!("skipped: {reason}"));
+                    skipped.push((attachment, reason));
+                    continue;
+                }
+            };
+            warn_all(&here, read.notes);
+            if !read.opened {
+                warn(&here, not_opened(&read.props));
+            }
+            let (record, notes) =
+                mapping::attachment(&read.props, read.content.as_deref(), code_page);
+            warn_all(&here, notes);
+            if let (Some(file), Some(content)) = (&record.file, &read.content) {
+                self.files.write(file, content)?;
+            }
+            message.attachments.push(record);
+        }
+        self.out.write(&message).map_err(Fault::Output)?;
+        for (attachment, reason) in skipped {
+            self.skipped("attachment", folder, Some(id), attachment, reason)?;
+        }
+        Ok(())
     }
 
-    fn skip(
+    /// Runs one read against the store inside [`guarded`]. A panic may have poisoned the
+    /// store's file mutex, so after one the store is reopened for the reads that follow.
+    fn read<T>(&mut self, read: impl FnOnce(&Pst) -> io::Result<T>) -> Result<T, String> {
+        let pst = &self.pst;
+        guarded(|| read(pst)).map_err(|failure| {
+            if failure.panicked {
+                self.reopen();
+            }
+            failure.reason
+        })
+    }
+
+    fn reopen(&mut self) {
+        match Pst::open(&self.path, self.encoding) {
+            Ok(pst) => {
+                self.pst = pst;
+                self.reopened += 1;
+            }
+            Err(reason) => warn(
+                "store",
+                &format!(
+                    "can't be reopened after a reader panic ({reason}); \
+                     the records after it may be skipped"
+                ),
+            ),
+        }
+    }
+
+    /// Writes the skipped line of a record whose warning is already written.
+    fn skipped(
         &mut self,
         kind: &'static str,
         folder: u32,
+        message: Option<u32>,
         id: u32,
-        place: &str,
         reason: String,
     ) -> Result<(), Fault> {
-        warn(
-            &format!("{place}, {kind} {id}"),
-            &format!("skipped: {reason}"),
-        );
         self.out
             .write(&model::Skipped {
                 line: "skipped",
                 kind,
                 folder: Some(folder),
+                message,
                 id: Some(id),
                 reason,
             })
@@ -209,12 +454,35 @@ impl<W: Write> Walk<'_, W> {
     }
 }
 
+/// The warning for an attachment listed from its table row, never opened.
+fn not_opened(row: &Bag) -> &'static str {
+    if integer(row, tag::ATTACH_METHOD) == Some(AF_EMBEDDED_MESSAGE) {
+        "an embedded message (attach method 5), listed without its content: \
+         outlook-pst 1.2.0 can't open one"
+    } else {
+        "the attachment table gives no attach method; listed without its content, \
+         never opened, as it may be an embedded message"
+    }
+}
+
+/// Why one read failed, and whether by a panic.
+struct Failure {
+    reason: String,
+    panicked: bool,
+}
+
 /// Runs one read inside outlook-pst, turning its error or its panic into a reason.
-fn guarded<T>(read: impl FnOnce() -> io::Result<T>) -> Result<T, String> {
+fn guarded<T>(read: impl FnOnce() -> io::Result<T>) -> Result<T, Failure> {
     match catch_unwind(AssertUnwindSafe(read)) {
         Ok(Ok(value)) => Ok(value),
-        Ok(Err(err)) => Err(err.to_string()),
-        Err(payload) => Err(format!("the reader panicked: {}", panic_text(&*payload))),
+        Ok(Err(err)) => Err(Failure {
+            reason: err.to_string(),
+            panicked: false,
+        }),
+        Err(payload) => Err(Failure {
+            reason: format!("the reader panicked: {}", panic_text(&*payload)),
+            panicked: true,
+        }),
     }
 }
 
@@ -254,16 +522,19 @@ mod tests {
 
     #[test]
     fn a_reader_panic_becomes_a_reason() {
-        let reason = guarded::<()>(|| panic!("index out of bounds"));
-        assert_eq!(
-            reason.unwrap_err(),
-            "the reader panicked: index out of bounds"
-        );
+        let failure = guarded::<()>(|| panic!("index out of bounds"))
+            .err()
+            .unwrap();
+        assert_eq!(failure.reason, "the reader panicked: index out of bounds");
+        assert!(failure.panicked);
     }
 
     #[test]
     fn a_reader_error_becomes_a_reason() {
-        let reason = guarded::<()>(|| Err(io::Error::other("Missing Sub-Node Tree on message")));
-        assert_eq!(reason.unwrap_err(), "Missing Sub-Node Tree on message");
+        let failure = guarded::<()>(|| Err(io::Error::other("Missing Sub-Node Tree on message")))
+            .err()
+            .unwrap();
+        assert_eq!(failure.reason, "Missing Sub-Node Tree on message");
+        assert!(!failure.panicked);
     }
 }

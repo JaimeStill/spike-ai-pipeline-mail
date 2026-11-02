@@ -2,10 +2,12 @@
 //!
 //! It reads one input, sniffed by content, and writes JSON Lines of schema "1" to stdout:
 //! nothing else goes there. Warnings and errors are single lines on stderr. Exit codes:
-//! 0 read, even with records skipped; 1 output that can't be written; 2 a usage error;
+//! 0 read, even with records skipped; 1 output that can't be written, to stdout or to the
+//! attachments directory; 2 a usage error;
 //! 3 an input refused; 4 a fault of the CLI's own.
 
 mod codepage;
+mod files;
 mod jsonl;
 mod mapping;
 mod model;
@@ -21,6 +23,7 @@ use std::panic::{self, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use files::Files;
 use jsonl::Lines;
 use sniff::Format;
 
@@ -37,6 +40,8 @@ pub enum Fault {
     Refused(String),
     /// stdout couldn't be written: exit 1.
     Output(io::Error),
+    /// An attachment's content couldn't be written to the attachments directory: exit 1.
+    Attachments(String),
     /// A fault of the CLI's own: exit 4.
     Internal(String),
 }
@@ -49,10 +54,6 @@ enum Command {
 
 struct Args {
     input: PathBuf,
-    #[expect(
-        dead_code,
-        reason = "accepted and checked now; attachments are written later"
-    )]
     attachments: Option<PathBuf>,
 }
 
@@ -66,6 +67,7 @@ fn main() -> ExitCode {
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
         Err(Fault::Output(err)) => fail(1, &format!("stdout can't be written: {err}")),
+        Err(Fault::Attachments(reason)) => fail(1, &reason),
         Err(Fault::Usage(reason)) => {
             eprintln!("{NAME}: {reason}\n{USAGE}");
             ExitCode::from(2)
@@ -95,8 +97,9 @@ fn run(args: &[OsString]) -> Result<(), Fault> {
         .and_then(|file| file.take(sniff::PREFIX as u64).read_to_end(&mut prefix))
         .map_err(|err| Fault::Refused(format!("{input}: {err}")))?;
     let mut out = Lines::new(BufWriter::new(io::stdout().lock()));
+    let mut files = Files::new(args.attachments);
     match sniff::sniff(&prefix) {
-        Format::Pst(encoding) => pst::read(path, encoding, &mut out)?,
+        Format::Pst(encoding) => pst::read(path, encoding, &mut out, &mut files)?,
         Format::Ost => {
             return Err(Fault::Refused(format!(
                 "{input}: an .ost, the offline cache of a server mailbox, is not read; \

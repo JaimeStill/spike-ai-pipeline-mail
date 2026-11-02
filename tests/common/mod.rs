@@ -29,7 +29,16 @@ impl Run {
 }
 
 pub fn run<S: AsRef<std::ffi::OsStr>>(args: &[S]) -> Run {
-    let out = Command::new(BIN).args(args).output().unwrap();
+    finish(Command::new(BIN).args(args))
+}
+
+/// One run of the binary with `dir` as its working directory.
+pub fn run_in<S: AsRef<std::ffi::OsStr>>(dir: &Path, args: &[S]) -> Run {
+    finish(Command::new(BIN).current_dir(dir).args(args))
+}
+
+fn finish(command: &mut Command) -> Run {
+    let out = command.output().unwrap();
     Run {
         code: out.status.code(),
         stdout: String::from_utf8(out.stdout).expect("stdout is UTF-8"),
@@ -49,6 +58,27 @@ pub fn built(name: &str, bytes: &[u8]) -> PathBuf {
     let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
     std::fs::write(&path, bytes).unwrap();
     path
+}
+
+/// An empty directory under Cargo's temporary directory for integration tests, emptied if a
+/// previous run left it.
+pub fn scratch(name: &str) -> PathBuf {
+    let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
+    if path.exists() {
+        std::fs::remove_dir_all(&path).unwrap();
+    }
+    std::fs::create_dir_all(&path).unwrap();
+    path
+}
+
+/// The names of the files in `dir`, sorted.
+pub fn names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    names.sort_unstable();
+    names
 }
 
 /// A file's lowercase hex SHA-256, by sha256sum, so the tests take no hashing crate.

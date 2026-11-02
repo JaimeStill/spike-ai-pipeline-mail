@@ -29,6 +29,14 @@ pub mod tag {
     pub const CREATION_TIME: u16 = 0x3007;
     pub const LAST_MODIFICATION_TIME: u16 = 0x3008;
     pub const CONTAINER_CLASS: u16 = 0x3613;
+    pub const ATTACH_DATA: u16 = 0x3701;
+    pub const ATTACH_EXTENSION: u16 = 0x3703;
+    pub const ATTACH_FILENAME: u16 = 0x3704;
+    pub const ATTACH_METHOD: u16 = 0x3705;
+    pub const ATTACH_LONG_FILENAME: u16 = 0x3707;
+    pub const ATTACH_MIME_TAG: u16 = 0x370E;
+    pub const ATTACH_CONTENT_ID: u16 = 0x3712;
+    pub const ATTACH_FLAGS: u16 = 0x3714;
     pub const MESSAGE_CODEPAGE: u16 = 0x3FFD;
     pub const CODE_PAGE_ID: u16 = 0x66C3;
     pub const PST_PASSWORD: u16 = 0x67FF;

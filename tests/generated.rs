@@ -6,16 +6,17 @@
 //! 1.3.0, through its EmlMapper, writes the subject, the sender's name and address, the To and Cc
 //! recipients, the times, the plain-text and HTML bodies and the attachments. It writes no Bcc, no
 //! sender address type, no threading fields, no transport headers and no conversation index, and
-//! it skips message/rfc822 parts. Its importance and sensitivity are always normal, and its
-//! conversation topic is the subject. The attachment and HTML truth waits for the slices that read
-//! them.
+//! it skips message/rfc822 parts, so a generated store has no embedded messages. Its importance
+//! and sensitivity are always normal, and its conversation topic is the subject. It writes each
+//! attachment by value, with no PidTagAttachExtension, and marks an inline one with
+//! ATT_MHTML_REF. The HTML truth waits for the slice that reads it.
 
 mod common;
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
-use common::{fixture, run, sha256};
+use common::{built, fixture, names, run, run_in, scratch, sha256};
 use serde_json::{Value, json};
 
 /// The folders PST Builder 1.3.0 makes in every store before the layout's, under the IPM
@@ -89,6 +90,32 @@ fn recipients(truth: Option<&Value>) -> Option<Value> {
     (!mapped.is_empty()).then_some(Value::Array(mapped))
 }
 
+/// What the store holds of a source's attachments, embedded messages left out: each by value,
+/// its file named by its SHA-256 and its filename's extension.
+fn attachments(truth: &Value) -> Option<Value> {
+    let list = truth.get("attachments")?.as_array().unwrap();
+    let mapped = list
+        .iter()
+        .map(|a| {
+            let filename = a["filename"].as_str().unwrap();
+            let (_, extension) = filename.rsplit_once('.').unwrap();
+            let mut record = json!({
+                "file": format!("{}.{extension}", a["sha256"].as_str().unwrap()),
+                "filename": filename,
+                "mime_type": a["mime_type"],
+                "inline": a["inline"],
+                "method": "by_value",
+                "size": a["size"],
+            });
+            if let Some(cid) = a.get("content_id") {
+                record["content_id"] = cid.clone();
+            }
+            record
+        })
+        .collect();
+    Some(Value::Array(mapped))
+}
+
 /// One message line against its source's truth, as the header comment says a store carries it.
 fn assert_message(got: &Value, truth: &Value, source: &str) {
     let expect = |field: &str, value: Option<&Value>| {
@@ -120,6 +147,7 @@ fn assert_message(got: &Value, truth: &Value, source: &str) {
     ] {
         expect(field, None);
     }
+    expect("attachments", attachments(truth).as_ref());
     let text = got["body"]
         .get("text")
         .map(|text| text.as_str().unwrap().replace("\r\n", "\n"));
@@ -179,6 +207,208 @@ fn stores_match_the_eml_truth() {
             "{file}: messages outside the layout's folders"
         );
     }
+}
+
+/// The truth's attachments cover what the attachment record has to get right: an inline picture
+/// with a content-id, and a filename in non-ASCII, which its source gives in RFC 2231's encoding.
+#[test]
+fn the_truth_covers_inline_and_non_ascii_attachments() {
+    let truth = json_file("truth.json");
+    let attachments: Vec<&Value> = truth["messages"]
+        .as_object()
+        .unwrap()
+        .values()
+        .filter_map(|message| message.get("attachments")?.as_array())
+        .flatten()
+        .collect();
+    assert!(
+        attachments
+            .iter()
+            .any(|a| a["inline"] == true && a.get("content_id").is_some())
+    );
+    assert!(
+        attachments
+            .iter()
+            .any(|a| !a["filename"].as_str().unwrap().is_ascii())
+    );
+    let source = std::fs::read_to_string(generated("eml/04-attachment-cyrillic.eml")).unwrap();
+    assert!(source.contains("filename*="), "an RFC 2231 filename");
+}
+
+/// The store's records, every attachment's file name across its message lines.
+fn files_named(lines: &[Value]) -> Vec<String> {
+    lines
+        .iter()
+        .filter_map(|line| line.get("attachments")?.as_array())
+        .flatten()
+        .filter_map(|a| Some(a.get("file")?.as_str()?.to_owned()))
+        .collect()
+}
+
+/// With --attachments, each record's file is in the directory, created as it was missing, its
+/// bytes those its name hashes; stdout is the same as without the flag.
+#[test]
+fn attachments_are_written_by_content() {
+    for store in json_file("layout.json")["stores"].as_array().unwrap() {
+        let file = generated(store["file"].as_str().unwrap());
+        let stem = file.file_stem().unwrap().to_str().unwrap();
+        let dir = scratch(&format!("generated-attachments-{stem}")).join("created");
+        let out = run(&[file.as_os_str(), "--attachments".as_ref(), dir.as_os_str()]);
+        assert_eq!(out.code, Some(0), "{}", out.stderr);
+        assert_eq!(out.stdout, run(&[&file]).stdout);
+        let mut expected = files_named(&out.lines());
+        assert!(!expected.is_empty());
+        expected.sort_unstable();
+        expected.dedup();
+        assert_eq!(names(&dir), expected);
+        for name in expected {
+            let (sha, _) = name.split_once('.').unwrap();
+            assert_eq!(sha256(&dir.join(&name)), sha, "{name}");
+        }
+    }
+}
+
+/// Without --attachments, a run writes nothing to disk: its working directory stays empty.
+#[test]
+fn nothing_is_written_without_the_flag() {
+    let cwd = scratch("generated-no-flag");
+    let out = run_in(&cwd, &[generated("pst/mailbox.pst")]);
+    assert_eq!(out.code, Some(0));
+    assert!(!files_named(&out.lines()).is_empty());
+    assert_eq!(names(&cwd), Vec::<String>::new());
+}
+
+/// Content that can't be written exits 1 with one error line: a directory that can't be
+/// created, and a file name already taken by a directory, which no user's permissions bypass.
+#[test]
+fn content_that_cant_be_written_exits_1() {
+    let store = generated("pst/mailbox.pst");
+    let scratch = scratch("generated-unwritable");
+    let file = scratch.join("a-file");
+    std::fs::write(&file, b"").unwrap();
+    let out = run(&[
+        store.as_os_str(),
+        "--attachments".as_ref(),
+        file.join("dir").as_os_str(),
+    ]);
+    assert_eq!(out.code, Some(1));
+    assert!(
+        out.stderr
+            .starts_with("spike-ai-pipeline-mail: error: the attachments directory ")
+            && out.stderr.contains("can't be created"),
+        "{}",
+        out.stderr
+    );
+
+    let dir = scratch.join("taken");
+    let first = files_named(&run(&[&store]).lines()).remove(0);
+    std::fs::create_dir_all(dir.join(&first)).unwrap();
+    let out = run(&[store.as_os_str(), "--attachments".as_ref(), dir.as_os_str()]);
+    assert_eq!(out.code, Some(1));
+    assert!(
+        out.stderr.starts_with(&format!(
+            "spike-ai-pipeline-mail: error: the attachment {}",
+            dir.join(&first).display()
+        )) && out.stderr.contains("can't be written"),
+        "{}",
+        out.stderr
+    );
+    assert_eq!(out.stderr.lines().count(), 1);
+}
+
+/// MS-PST's CRC (MS-PST 5.3): CRC-32's reflected polynomial from 0, without a final inversion.
+fn pst_crc(bytes: &[u8]) -> u32 {
+    let mut crc = 0u32;
+    for byte in bytes {
+        crc ^= u32::from(*byte);
+        for _ in 0..8 {
+            crc = if crc & 1 == 1 {
+                (crc >> 1) ^ 0xEDB8_8320
+            } else {
+                crc >> 1
+            };
+        }
+    }
+    crc
+}
+
+/// mailbox.pst with note-g.txt's PidTagAttachMethod rewritten to `method` on the attachment
+/// object, and its block's CRC made good. The store is unencrypted: the property's record is in
+/// the data block at 28864, 232 bytes long, its value at 29039, the CRC in its trailer at 29108.
+/// Its attachment table row keeps method 1, so the CLI opens it.
+fn with_attach_method(method: u8) -> std::path::PathBuf {
+    let mut bytes = std::fs::read(generated("pst/mailbox.pst")).unwrap();
+    let (block, value, crc) = (28864..28864 + 232, 29039, 29108..29112);
+    assert_eq!(
+        bytes[value - 4..value + 4],
+        [0x05, 0x37, 0x03, 0x00, 1, 0, 0, 0]
+    );
+    assert_eq!(
+        bytes[crc.clone()],
+        pst_crc(&bytes[block.clone()]).to_le_bytes()
+    );
+    bytes[value] = method;
+    let sum = pst_crc(&bytes[block]).to_le_bytes();
+    bytes[crc].copy_from_slice(&sum);
+    built(&format!("mailbox-method-{method}.pst"), &bytes)
+}
+
+/// The message 08-forward-attached-message.eml became, in mailbox.pst.
+const NOTE_G_MESSAGE: u64 = 2097380;
+
+/// A by-reference attachment is listed with no file and no size, and nothing is written for it.
+#[test]
+fn a_by_reference_attachment_has_no_file() {
+    let dir = scratch("by-reference");
+    let store = with_attach_method(2);
+    let out = run(&[store.as_os_str(), "--attachments".as_ref(), dir.as_os_str()]);
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
+    assert_eq!(out.stderr, "");
+    let lines = out.lines();
+    let message = lines.iter().find(|l| l["id"] == NOTE_G_MESSAGE).unwrap();
+    assert_eq!(
+        message["attachments"],
+        json!([{
+            "filename": "note-g.txt",
+            "mime_type": "text/plain",
+            "inline": false,
+            "method": "by_reference",
+        }])
+    );
+    assert_eq!(names(&dir).len(), files_named(&lines).len());
+}
+
+/// An attachment outlook-pst can't read, here an afStorage one whose data isn't a storage, is a
+/// skipped line after its message's line, with a warning, and the run exits 0.
+#[test]
+fn an_attachment_that_cant_be_read_is_skipped() {
+    let out = run(&[with_attach_method(6)]);
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
+    let lines = out.lines();
+    let at = lines
+        .iter()
+        .position(|l| l["line"] == "message" && l["id"] == NOTE_G_MESSAGE)
+        .unwrap();
+    assert_eq!(lines[at].get("attachments"), None);
+    let reason = "Invalid PidTagAttachDataObject on afEmbeddedMessage attachment: Binary";
+    assert_eq!(
+        lines[at + 1],
+        json!({
+            "line": "skipped",
+            "kind": "attachment",
+            "folder": lines[at]["folder"],
+            "message": NOTE_G_MESSAGE,
+            "id": 5,
+            "reason": reason,
+        })
+    );
+    assert_eq!(
+        out.stderr,
+        format!(
+            "spike-ai-pipeline-mail: warning: /Top of Personal Folders/Sent Items, message \
+             {NOTE_G_MESSAGE}, attachment 5: skipped: {reason}\n"
+        )
+    );
 }
 
 /// Each generated store's stdout equals its golden, byte for byte, so a regenerated store that
