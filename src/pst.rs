@@ -14,9 +14,11 @@
 use std::fs::File;
 use std::io::{self, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::Path;
 use std::rc::Rc;
 
 use outlook_pst::ltp::prop_context::PropertyValue;
+use outlook_pst::ltp::table_context::TableContext;
 use outlook_pst::messaging::message::Message as PstMessage;
 use outlook_pst::messaging::store::{AnsiStore, EntryId, Store, UnicodeStore};
 use outlook_pst::ndb::node_id::NodeId;
@@ -26,12 +28,13 @@ use crate::codepage::{message_code_page, store_code_page};
 use crate::jsonl::Lines;
 use crate::props::{Bag, Value, integer, tag};
 use crate::sniff::Encoding;
-use crate::{Fault, mapping, model, warn};
+use crate::{Fault, mapping, model, panic_text, warn};
 
 /// Reads the store at `path`, whose header names `encoding`, and writes its lines to `out`.
-pub fn read(path: &str, encoding: Encoding, out: &mut Lines<impl Write>) -> Result<(), Fault> {
+pub fn read(path: &Path, encoding: Encoding, out: &mut Lines<impl Write>) -> Result<(), Fault> {
     let refuse = |what: &'static str| move |reason| Fault::Refused(format!("{what}: {reason}"));
-    let file = File::open(path).map_err(|err| Fault::Refused(format!("{path}: {err}")))?;
+    let file =
+        File::open(path).map_err(|err| Fault::Refused(format!("{}: {err}", path.display())))?;
     let store: Rc<dyn Store> = match encoding {
         Encoding::Unicode => {
             let pst = guarded(|| UnicodePstFile::read_from(Box::new(file)))
@@ -84,7 +87,7 @@ struct FolderData {
 
 fn read_folder(store: &Rc<dyn Store>, entry_id: &EntryId) -> io::Result<FolderData> {
     let folder = store.open_folder(entry_id)?;
-    let rows = |table: Option<&Rc<dyn outlook_pst::ltp::table_context::TableContext>>| {
+    let rows = |table: Option<&Rc<dyn TableContext>>| {
         table
             .map(|table| table.rows_matrix().map(|row| u32::from(row.id())).collect())
             .unwrap_or_default()
@@ -211,10 +214,7 @@ fn guarded<T>(read: impl FnOnce() -> io::Result<T>) -> Result<T, String> {
     match catch_unwind(AssertUnwindSafe(read)) {
         Ok(Ok(value)) => Ok(value),
         Ok(Err(err)) => Err(err.to_string()),
-        Err(payload) => Err(format!(
-            "the reader panicked: {}",
-            crate::panic_text(&*payload)
-        )),
+        Err(payload) => Err(format!("the reader panicked: {}", panic_text(&*payload))),
     }
 }
 

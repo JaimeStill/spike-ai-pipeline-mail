@@ -14,10 +14,11 @@ mod pst;
 mod sniff;
 
 use std::any::Any;
+use std::ffi::OsString;
 use std::fs::File;
 use std::io::{self, BufWriter, Read};
 use std::panic::{self, AssertUnwindSafe};
-use std::path::Path;
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use jsonl::Lines;
@@ -47,18 +48,19 @@ enum Command {
 }
 
 struct Args {
-    input: String,
+    input: PathBuf,
     #[expect(
         dead_code,
         reason = "accepted and checked now; attachments are written later"
     )]
-    attachments: Option<String>,
+    attachments: Option<PathBuf>,
 }
 
 fn main() -> ExitCode {
     // Panics are reported once, as a warning or an error line, never by the default hook.
     panic::set_hook(Box::new(|_| {}));
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    // args_os: a path needn't be UTF-8, and std::env::args panics on one that isn't.
+    let args: Vec<OsString> = std::env::args_os().skip(1).collect();
     let outcome = panic::catch_unwind(AssertUnwindSafe(|| run(&args)))
         .unwrap_or_else(|payload| Err(Fault::Internal(panic_text(&*payload))));
     match outcome {
@@ -78,7 +80,7 @@ fn fail(code: u8, reason: &str) -> ExitCode {
     ExitCode::from(code)
 }
 
-fn run(args: &[String]) -> Result<(), Fault> {
+fn run(args: &[OsString]) -> Result<(), Fault> {
     let args = match parse(args)? {
         Command::Version => {
             println!("{NAME} {}", env!("CARGO_PKG_VERSION"));
@@ -86,14 +88,15 @@ fn run(args: &[String]) -> Result<(), Fault> {
         }
         Command::Read(args) => args,
     };
-    let input = &args.input;
+    let path = &args.input;
+    let input = path.display();
     let mut prefix = Vec::with_capacity(sniff::PREFIX);
-    File::open(input)
+    File::open(path)
         .and_then(|file| file.take(sniff::PREFIX as u64).read_to_end(&mut prefix))
         .map_err(|err| Fault::Refused(format!("{input}: {err}")))?;
     let mut out = Lines::new(BufWriter::new(io::stdout().lock()));
     match sniff::sniff(&prefix) {
-        Format::Pst(encoding) => pst::read(input, encoding, &mut out)?,
+        Format::Pst(encoding) => pst::read(path, encoding, &mut out)?,
         Format::Ost => {
             return Err(Fault::Refused(format!(
                 "{input}: an .ost, the offline cache of a server mailbox, is not read; \
@@ -122,7 +125,7 @@ fn run(args: &[String]) -> Result<(), Fault> {
 
 /// Parses the arguments by hand: `--version` alone, or one input and an optional
 /// `--attachments <dir>`, in any order.
-fn parse(args: &[String]) -> Result<Command, Fault> {
+fn parse(args: &[OsString]) -> Result<Command, Fault> {
     if let [flag] = args
         && flag == "--version"
     {
@@ -133,21 +136,21 @@ fn parse(args: &[String]) -> Result<Command, Fault> {
     let mut attachments = None;
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
-        match arg.as_str() {
-            "--attachments" => {
+        match arg.to_str() {
+            Some("--attachments") => {
                 let Some(dir) = rest.next().filter(|dir| !dir.is_empty()) else {
                     return usage("--attachments needs a directory");
                 };
-                if attachments.replace(dir.clone()).is_some() {
+                if attachments.replace(PathBuf::from(dir)).is_some() {
                     return usage("--attachments is given more than once");
                 }
             }
-            "--version" => return usage("--version takes no other arguments"),
-            option if option.starts_with('-') && option != "-" => {
+            Some("--version") => return usage("--version takes no other arguments"),
+            Some(option) if option.starts_with('-') && option != "-" => {
                 return usage(&format!("unknown option {option}"));
             }
             _ => {
-                if input.replace(arg.clone()).is_some() {
+                if input.replace(PathBuf::from(arg)).is_some() {
                     return usage("more than one input");
                 }
             }
@@ -157,10 +160,13 @@ fn parse(args: &[String]) -> Result<Command, Fault> {
         return usage("no input");
     };
     if let Some(dir) = &attachments
-        && Path::new(dir).exists()
-        && !Path::new(dir).is_dir()
+        && dir.exists()
+        && !dir.is_dir()
     {
-        return usage(&format!("--attachments {dir} is not a directory"));
+        return usage(&format!(
+            "--attachments {} is not a directory",
+            dir.display()
+        ));
     }
     Ok(Command::Read(Args { input, attachments }))
 }

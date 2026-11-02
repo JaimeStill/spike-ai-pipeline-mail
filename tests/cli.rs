@@ -202,3 +202,18 @@ fn a_missing_input_is_refused() {
         ),
     );
 }
+
+/// A path needn't be UTF-8: one that isn't is read like any other, here refused as missing.
+#[test]
+fn a_path_that_is_not_utf8_is_read_as_a_path() {
+    use std::os::unix::ffi::OsStrExt;
+    let name = std::ffi::OsStr::from_bytes(b"missing-\xFF.pst");
+    let missing = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
+    assert_refused(
+        &[&missing],
+        &format!(
+            "{}: No such file or directory (os error 2)",
+            missing.display()
+        ),
+    );
+}
