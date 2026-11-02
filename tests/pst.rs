@@ -90,12 +90,22 @@ fn lines_follow_schema_1() {
                     }
                     folders.push((line["id"].as_u64().unwrap(), path));
                 }
+                // A skipped folder names its parent, whose line is written but may not be the
+                // last: the parent's earlier subfolders come between.
+                "skipped" if line["kind"] == "folder" => {
+                    assert!(
+                        folders
+                            .iter()
+                            .any(|(id, _)| Some(*id) == line["folder"].as_u64()),
+                        "{store}: a skipped folder's parent is written before it"
+                    );
+                }
                 "message" | "skipped" => {
                     let folder = line["folder"].as_u64();
                     assert_eq!(
                         folders.last().map(|(id, _)| *id),
                         folder,
-                        "{store}: a record follows its own folder's line"
+                        "{store}: a message follows its own folder's line"
                     );
                 }
                 other => panic!("{store}: unknown line {other}"),

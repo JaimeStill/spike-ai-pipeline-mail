@@ -1,7 +1,10 @@
 //! What the tests share: running the built binary, and the paths of fixtures, goldens and
 //! test-built inputs.
 
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "each test crate compiles this module and uses only part of it"
+)]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
