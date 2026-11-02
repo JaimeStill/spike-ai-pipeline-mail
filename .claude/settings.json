@@ -1,0 +1,14 @@
+{
+  "plansDirectory": "./.claude/plans",
+  "permissions": {
+    "allow": [
+      "Bash(cargo build:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(mise run:*)",
+      "Bash(mise tasks:*)",
+      "Skill(marathon:marathon)"
+    ]
+  }
+}

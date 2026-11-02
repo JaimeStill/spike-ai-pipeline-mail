@@ -1,0 +1,23 @@
+# mise: the toolchain and the check and currency tasks.
+[tools]
+jq = "1.8.2"
+rust = { version = "1.99.1", profile = "minimal", components = "clippy,rustfmt", targets = "x86_64-unknown-linux-musl,aarch64-unknown-linux-musl" }
+shellcheck = "0.11.0"
+
+[tasks.check]
+description = "Lint, format-check, test, and build the static musl release binary; writes only target/"
+run = '''
+set -eu
+cd "$MISE_PROJECT_ROOT"
+git ls-files -z '*.sh' | xargs -0 -r shellcheck
+cargo fmt --check
+cargo clippy --all-targets --locked -- -D warnings
+cargo test --locked
+target="$(uname -m)-unknown-linux-musl"
+cargo build --release --locked --target "$target"
+"target/$target/release/spike-ai-pipeline-mail" --version
+'''
+
+[tasks.currency]
+description = "Report every crate and mise tool behind its latest; writes nothing"
+run = "scripts/currency.sh"

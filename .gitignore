@@ -1,0 +1,6 @@
+# marathon working files.
+.claude/plans/
+.claude/briefs/
+
+# Build output.
+target/
