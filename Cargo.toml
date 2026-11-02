@@ -8,3 +8,8 @@ repository = "https://github.com/JaimeStill/spike-ai-pipeline-mail"
 publish = false
 
 [dependencies]
+# Pinned exactly: the CLI works around known faults of these releases (src/pst.rs).
+outlook-pst = "=1.2.0"
+codepage-strings = "=1.0.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
