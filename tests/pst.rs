@@ -401,6 +401,43 @@ fn corrupt_records_are_skipped_and_the_run_exits_0() {
     assert_eq!(messages, 1);
 }
 
+/// A panic reading an attachment poisons the mutex too. The store is reopened, and the open
+/// message, which holds the poisoned store, is opened again from it, so the message's other
+/// attachments are still read. The byte flipped here makes outlook-pst overflow on the first of
+/// Inbox's message's eleven pictures, in the debug binary as above.
+#[test]
+fn attachments_after_a_reader_panic_are_still_read() {
+    let mut bytes = std::fs::read(fixture("pst/libyal/outlook.pst")).unwrap();
+    bytes[29763] ^= 0xFF;
+    let out = run(&[built("attachment-panic.pst", &bytes)]);
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
+    let reason = "the reader panicked: attempt to multiply with overflow";
+    assert_eq!(
+        out.stderr,
+        format!(
+            "spike-ai-pipeline-mail: warning: /Top of Personal Folders/Inbox, message 2097188, \
+             attachment 32805: skipped: {reason}\n"
+        )
+    );
+    let mut intact = run(&[fixture("pst/libyal/outlook.pst")]).lines();
+    let at = intact.iter().position(|l| l["id"] == 2097188).unwrap();
+    // The intact store's lines, less the first attachment, with its skipped line after.
+    intact[at]["attachments"].as_array_mut().unwrap().remove(0);
+    intact.insert(
+        at + 1,
+        serde_json::json!({
+            "line": "skipped",
+            "kind": "attachment",
+            "folder": 33090,
+            "message": 2097188,
+            "id": 32805,
+            "reason": reason,
+        }),
+    );
+    assert_eq!(intact[at]["attachments"].as_array().unwrap().len(), 10);
+    assert_eq!(out.lines(), intact);
+}
+
 /// Every committed store has a sources entry whose SHA-256 matches it.
 #[test]
 fn every_store_has_a_matching_sources_entry() {
