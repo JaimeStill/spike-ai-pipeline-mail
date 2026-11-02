@@ -142,7 +142,7 @@ public static class Fixtures
     /// <summary>The packages whose versions the manifest records: the generator's, and what they read with.</summary>
     static readonly string[] Packages = ["PstBuilder", "PstBuilder.Eml", "MsgKit", "MimeKit", "OpenMcdf"];
 
-    static Dictionary<string, string> Tools()
+    internal static Dictionary<string, string> Tools()
     {
         var tools = new Dictionary<string, string>
         {

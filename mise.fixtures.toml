@@ -13,3 +13,8 @@ description = "Regenerate the generated .pst and .msg fixtures and their manifes
 # From generator/, so its global.json pins the SDK.
 dir = "{{config_root}}/generator"
 run = "dotnet run -c Release -- fixtures ../tests/fixtures/generated"
+
+[tasks.scale]
+description = "Build the scale store, about 50k messages and 2 GB, from a seed into .state/scale/ (scale.pst and scale.json), never committed; `-- --seed <n> --messages <n>` override the defaults, 16 and 50000"
+dir = "{{config_root}}/generator"
+run = "dotnet run -c Release -- scale ../.state/scale"

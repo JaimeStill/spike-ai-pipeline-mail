@@ -232,6 +232,44 @@ fn every_message_has_a_matching_sources_entry() {
     }
 }
 
+/// What Tika's OutlookParserTest asserts of its .msg files, as tika-truth.json writes it, is in
+/// the CLI's message lines: every field but one. testMSG_chinese.msg's To recipient is an
+/// Exchange recipient, and the CLI writes its address as stored (PidTagEmailAddress), where Tika
+/// reports its SMTP address (PidTagSmtpAddress), which the CLI doesn't write. The findings run
+/// scores the same file (docs/findings/mail-cli.md).
+#[test]
+fn fields_match_the_tika_truth() {
+    let truth: Value =
+        serde_json::from_slice(&std::fs::read(fixture("msg/tika-truth.json")).unwrap()).unwrap();
+    let mut files: Vec<&str> = truth["messages"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    files.sort_unstable();
+    let mut messages = MESSAGES.to_vec();
+    messages.sort_unstable();
+    assert_eq!(files, messages, "every committed message has its truth");
+    let mut checked = 0;
+    for (path, entry) in truth["messages"].as_object().unwrap() {
+        let got = message(path);
+        for (pointer, want) in entry["fields"].as_object().unwrap() {
+            if (path.as_str(), pointer.as_str()) == ("tika/testMSG_chinese.msg", "/to/0/address") {
+                assert_eq!(got["to"][0]["address_type"], "EX");
+                assert_eq!(
+                    got.pointer(pointer),
+                    Some(&json!("/O=FT GROUP/OU=FT/CN=RECIPIENTS/CTestsiaChang"))
+                );
+                continue;
+            }
+            assert_eq!(got.pointer(pointer), Some(want), "{path}: {pointer}");
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 21);
+}
+
 // Messages built in the test.
 
 const SUBJECT: u16 = 0x0037;

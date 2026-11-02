@@ -1,6 +1,6 @@
 // The fixtures generator of spike-ai-pipeline-mail: hand-written .eml sources in, .pst and .msg
-// fixtures out. Each mode is one command; `fixtures` builds the committed set. The scale mode, a
-// large store built from a seed and never committed, is a second command beside it.
+// fixtures out. Each mode is one command: `fixtures` builds the committed set, and `scale` a large
+// store built from a seed, never committed (Scale.cs).
 
 using System.Text;
 using SpikeAiPipeline.Mail.Generator;
@@ -12,11 +12,13 @@ Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 return args switch
 {
     ["fixtures", var dir] => Fixtures.Run(dir),
+    ["scale", .. var rest] => Scale.Run(rest),
     _ => Usage(),
 };
 
 static int Usage()
 {
-    Console.Error.WriteLine("usage: generator fixtures <tests/fixtures/generated>");
+    Console.Error.WriteLine("usage: generator fixtures <tests/fixtures/generated>\n"
+        + "       generator scale <dir> [--seed <n>] [--messages <n>]");
     return 2;
 }
