@@ -4,9 +4,10 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::codepage::Strings;
-use crate::model::{Address, Attachment, Body, Message};
+use crate::codepage::{self, Strings};
+use crate::model::{Address, Attachment, Body, Derived, Message};
 use crate::props::{Bag, Value, integer, tag};
+use crate::{markdown, rtf};
 
 /// Recipient types of PidTagRecipientType (MS-OXOMSG 2.2.3.1), less the MAPI_P1 resend flag.
 const MAPI_TO: i64 = 1;
@@ -52,9 +53,7 @@ pub fn message(props: &Bag, recipients: &[Bag], code_page: u16) -> (Message, Vec
         references: strings.text(props, tag::INTERNET_REFERENCES),
         conversation_topic: strings.text(props, tag::CONVERSATION_TOPIC),
         conversation_index: binary(props, tag::CONVERSATION_INDEX).map(hex),
-        body: Body {
-            text: strings.text(props, tag::BODY),
-        },
+        body: body(&mut strings, props, code_page, &mut notes),
         ..Message::default()
     };
     for (row, recipient) in recipients.iter().enumerate() {
@@ -79,6 +78,62 @@ pub fn message(props: &Bag, recipients: &[Bag], code_page: u16) -> (Message, Vec
     let mut all = strings.into_notes();
     all.append(&mut notes);
     (message, all)
+}
+
+/// A message's bodies: the stored plain text, HTML and RTF, then the HTML recovered from the
+/// RTF and the Markdown made from the HTML, else from the plain text. A body that can't be
+/// read is left out with a note, and the message keeps the rest.
+fn body(strings: &mut Strings, props: &Bag, code_page: u16, notes: &mut Vec<String>) -> Body {
+    let text = strings.text(props, tag::BODY);
+    let html = html(strings, props, code_page);
+    let rtf = binary(props, tag::RTF_COMPRESSED).and_then(|compressed| {
+        rtf::decompress(compressed)
+            .map_err(|reason| {
+                notes.push(format!(
+                    "property 0x{:04X} {reason}; left out",
+                    tag::RTF_COMPRESSED
+                ));
+            })
+            .ok()
+    });
+    let from_rtf = rtf.as_deref().and_then(rtf::html).map(|(html, mut lossy)| {
+        notes.append(&mut lossy);
+        html
+    });
+    let markdown = match (&html, &from_rtf, &text) {
+        (Some(html), _, _) | (None, Some(html), _) => Some(markdown::from_html(html)),
+        (None, None, Some(text)) => Some(markdown::from_text(text)),
+        (None, None, None) => None,
+    }
+    .and_then(|made| {
+        made.map_err(|reason| notes.push(format!("the Markdown body {reason}; left out")))
+            .ok()
+    });
+    Body {
+        text,
+        html,
+        rtf,
+        derived: Derived {
+            html: from_rtf,
+            markdown,
+        },
+    }
+}
+
+/// The stored HTML body. PidTagHtml is PT_BINARY, decoded in the code page
+/// PidTagInternetCodepage names, else the one the HTML's own `<meta>` declares, else UTF-8 when
+/// the bytes are valid UTF-8, else the message's, which is the store's when the message names
+/// none. As PidTagBodyHtml, a string, it is decoded as any string is.
+fn html(strings: &mut Strings, props: &Bag, code_page: u16) -> Option<String> {
+    let Some(bytes) = binary(props, tag::HTML) else {
+        return strings.text(props, tag::HTML);
+    };
+    let code_page = integer(props, tag::INTERNET_CODEPAGE)
+        .and_then(|value| u16::try_from(value).ok())
+        .or_else(|| codepage::meta_charset(bytes))
+        .or_else(|| std::str::from_utf8(bytes).is_ok().then_some(codepage::UTF8))
+        .unwrap_or(code_page);
+    Some(strings.decode(tag::HTML, bytes, code_page))
 }
 
 /// ATT_MHTML_REF of PidTagAttachFlags (MS-OXCMSG 2.2.2.18): the HTML body refers to the

@@ -10,9 +10,11 @@ mod codepage;
 mod files;
 mod jsonl;
 mod mapping;
+mod markdown;
 mod model;
 mod props;
 mod pst;
+mod rtf;
 mod sniff;
 
 use std::any::Any;

@@ -9,7 +9,8 @@
 //! it skips message/rfc822 parts, so a generated store has no embedded messages. Its importance
 //! and sensitivity are always normal, and its conversation topic is the subject. It writes each
 //! attachment by value, with no PidTagAttachExtension, and marks an inline one with
-//! ATT_MHTML_REF. The HTML truth waits for the slice that reads it.
+//! ATT_MHTML_REF. It stores the HTML body as UTF-8 with no PidTagInternetCodepage, and no RTF
+//! body, so a generated store has no HTML recovered from RTF.
 
 mod common;
 
@@ -148,13 +149,80 @@ fn assert_message(got: &Value, truth: &Value, source: &str) {
         expect(field, None);
     }
     expect("attachments", attachments(truth).as_ref());
-    let text = got["body"]
-        .get("text")
-        .map(|text| text.as_str().unwrap().replace("\r\n", "\n"));
+    for body in ["text", "html"] {
+        let got = got["body"]
+            .get(body)
+            .map(|text| text.as_str().unwrap().replace("\r\n", "\n"));
+        assert_eq!(
+            got.as_deref(),
+            truth["body"].get(body).map(|t| t.as_str().unwrap()),
+            "{source}: body {body}"
+        );
+    }
+    assert_eq!(got["body"].get("rtf"), None, "{source}: body rtf");
+    let derived = got["body"]["derived"].as_object().unwrap();
     assert_eq!(
-        text.as_deref(),
-        truth["body"].get("text").map(|t| t.as_str().unwrap()),
-        "{source}: body text"
+        derived.keys().collect::<Vec<_>>(),
+        ["markdown"],
+        "{source}: derived bodies"
+    );
+}
+
+/// The message line `source` became in mailbox.pst.
+fn message_from(source: &str) -> Value {
+    let layout = json_file("layout.json");
+    let store = &layout["stores"][0];
+    let sources: Vec<String> = store["folders"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|folder| strings(&folder["messages"]))
+        .collect();
+    assert!(sources.iter().any(|s| s == source), "{source}");
+    let subject = &json_file("truth.json")["messages"][source]["subject"];
+    run(&[generated(store["file"].as_str().unwrap())])
+        .lines()
+        .into_iter()
+        .find(|line| line["line"] == "message" && &line["subject"] == subject)
+        .unwrap()
+}
+
+fn markdown(message: &Value) -> &str {
+    message["body"]["derived"]["markdown"].as_str().unwrap()
+}
+
+/// The Markdown body of an HTML message is htmd's rendering of its stored HTML.
+#[test]
+fn markdown_is_made_from_the_html() {
+    let message = message_from("07-html-only-bcc.eml");
+    assert_eq!(
+        markdown(&message),
+        "Shall we meet at the café at noon? ☕\n\n*   Bring Note G\n*   Bring the moth"
+    );
+}
+
+/// An inline picture keeps its cid: source in the Markdown, and it names the content_id of the
+/// attachment it is.
+#[test]
+fn markdown_keeps_cid_images() {
+    let message = message_from("03-html-inline-image.eml");
+    assert_eq!(
+        markdown(&message),
+        "We found a **moth** in relay 70, panel F.\n\n![moth](cid:moth@example.net)"
+    );
+    assert_eq!(message["attachments"][0]["content_id"], "moth@example.net");
+}
+
+/// Without HTML, the Markdown is the plain text, escaped to read literally: the quoted line is
+/// no Markdown quote.
+#[test]
+fn markdown_from_plain_text_reads_literally() {
+    let message = message_from("02-reply-latin1.eml");
+    assert_eq!(message["body"].get("html"), None);
+    assert_eq!(
+        markdown(&message),
+        "Ada,\n\nSplendid. The café in Zürich serves crème brûlée; we shall  \n\
+         discuss Note G there.\n\n\\> I have finished the notes on the engine.\n\nCharles"
     );
 }
 

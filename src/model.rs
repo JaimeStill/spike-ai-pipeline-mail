@@ -116,17 +116,47 @@ impl Address {
     }
 }
 
-/// A message's bodies.
+/// A message's bodies. The stored ones sit at the top level, each written as stored; the ones
+/// the CLI makes from them sit under `derived`, so a stored body and a derived one never share a
+/// place and a reader tells them apart by where they are.
 #[derive(Default, Serialize)]
 pub struct Body {
-    /// The stored plain-text body.
+    /// The stored plain-text body, PidTagBody.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    /// The stored HTML body, PidTagHtml, decoded by its internet code page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>,
+    /// The stored RTF body, PidTagRtfCompressed, decompressed. RTF is 7-bit text; any byte
+    /// past ASCII is written as the character of the same number.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rtf: Option<String>,
+    #[serde(skip_serializing_if = "Derived::is_empty")]
+    pub derived: Derived,
 }
 
 impl Body {
     pub fn is_empty(&self) -> bool {
-        self.text.is_none()
+        self.text.is_none() && self.html.is_none() && self.rtf.is_none() && self.derived.is_empty()
+    }
+}
+
+/// The bodies the CLI makes; none of them is stored in the message.
+#[derive(Default, Serialize)]
+pub struct Derived {
+    /// The HTML recovered from the RTF body when it encapsulates HTML (\fromhtml1, MS-OXRTFEX).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>,
+    /// Markdown made from the stored HTML, else from the HTML recovered from RTF, else from the
+    /// plain text, read literally. Images keep their `cid:` sources, which name attachments'
+    /// content_id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown: Option<String>,
+}
+
+impl Derived {
+    pub fn is_empty(&self) -> bool {
+        self.html.is_none() && self.markdown.is_none()
     }
 }
 

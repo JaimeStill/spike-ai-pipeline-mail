@@ -20,6 +20,9 @@ pub mod tag {
     pub const SENDER_EMAIL_ADDRESS: u16 = 0x0C1F;
     pub const MESSAGE_DELIVERY_TIME: u16 = 0x0E06;
     pub const BODY: u16 = 0x1000;
+    pub const RTF_COMPRESSED: u16 = 0x1009;
+    /// PidTagHtml, PT_BINARY; PidTagBodyHtml is the same id as a string.
+    pub const HTML: u16 = 0x1013;
     pub const INTERNET_MESSAGE_ID: u16 = 0x1035;
     pub const INTERNET_REFERENCES: u16 = 0x1039;
     pub const IN_REPLY_TO_ID: u16 = 0x1042;
@@ -37,6 +40,7 @@ pub mod tag {
     pub const ATTACH_MIME_TAG: u16 = 0x370E;
     pub const ATTACH_CONTENT_ID: u16 = 0x3712;
     pub const ATTACH_FLAGS: u16 = 0x3714;
+    pub const INTERNET_CODEPAGE: u16 = 0x3FDE;
     pub const MESSAGE_CODEPAGE: u16 = 0x3FFD;
     pub const CODE_PAGE_ID: u16 = 0x66C3;
     pub const PST_PASSWORD: u16 = 0x67FF;

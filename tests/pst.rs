@@ -465,3 +465,95 @@ fn every_store_has_a_matching_sources_entry() {
         );
     }
 }
+
+/// Tika's testPST_variousBodyTypes.pst forwards one message as HTML, as RTF and as plain text.
+/// Each body is written as stored, and the Markdown comes from the HTML where there is some,
+/// else from the plain text. Its RTF is Word's own, not \fromhtml1, so no HTML is recovered
+/// from it.
+#[test]
+fn bodies_are_written_as_stored_with_markdown() {
+    let lines = run(&[fixture("pst/tika/testPST_variousBodyTypes.pst")]).lines();
+    let bodies: Vec<&Value> = lines
+        .iter()
+        .filter(|l| l["line"] == "message")
+        .map(|l| &l["body"])
+        .collect();
+    let kinds = |body: &Value| -> Vec<String> {
+        let mut kinds: Vec<String> = body.as_object().unwrap().keys().cloned().collect();
+        kinds.extend(
+            body["derived"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .map(|kind| format!("derived.{kind}")),
+        );
+        kinds
+    };
+    let text = |body: &Value| body["text"].as_str().unwrap().to_owned();
+    let (html, forwarded_html, rtf, plain) = (bodies[0], bodies[1], bodies[2], bodies[3]);
+
+    assert_eq!(kinds(html), ["derived", "html", "text", "derived.markdown"]);
+    assert_eq!(text(html), "This is the original email (html)\r\n\r\n");
+    let stored = html["html"].as_str().unwrap();
+    assert!(stored.starts_with("<html xmlns:v="), "{stored}");
+    assert!(
+        stored.ends_with(
+            "This is the <b>original</b> email (html)<o:p></o:p></p></div></body></html>"
+        )
+    );
+    assert_eq!(
+        html["derived"]["markdown"],
+        "This is the **original** email (html)"
+    );
+
+    assert_eq!(kinds(forwarded_html), kinds(html));
+    assert!(
+        forwarded_html["derived"]["markdown"]
+            .as_str()
+            .unwrap()
+            .ends_with("This is the **original** email (html)\n\n\u{A0}\n\n**Forwarded** (html)")
+    );
+
+    assert_eq!(kinds(rtf), ["derived", "rtf", "text", "derived.markdown"]);
+    let stored = rtf["rtf"].as_str().unwrap();
+    assert!(stored.starts_with("{\\rtf1\\adeflang1025\\ansi\\ansicpg1252\\uc1"));
+    assert!(!stored.contains("\\fromhtml1"));
+    assert!(text(rtf).ends_with("Forwarded RTF\r\n"));
+    assert!(rtf["derived"]["markdown"].as_str().unwrap().ends_with(
+        "Subject: original email\n\nThis is the original email (html)\n\nForwarded RTF"
+    ));
+
+    assert_eq!(kinds(plain), ["derived", "text", "derived.markdown"]);
+    assert!(
+        plain["derived"]["markdown"]
+            .as_str()
+            .unwrap()
+            .starts_with("From: Allison, Timothy B.  \nSent: Wednesday, August 30, 2017 3:26 PM  \nTo: Allison, Timothy B. \\<tallison@mitre.org>  \n")
+    );
+}
+
+/// Markdown from plain text escapes what Markdown would read in it: a JIRA notice's bracketed
+/// link, its underline (a heading, unescaped), its quoted lines and an ampersand.
+#[test]
+fn markdown_from_plain_text_escapes_markup() {
+    let lines = run(&[fixture("pst/tika/testPST.pst")]).lines();
+    let markdown = |id: u64| {
+        let message = lines.iter().find(|l| l["id"] == id).unwrap();
+        assert_eq!(message["body"].get("html"), None);
+        message["body"]["derived"]["markdown"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let resolved = markdown(2097284);
+    assert!(
+        resolved.starts_with(
+            "\\[ https://issues.apache.org/jira/browse/TIKA-1249?page=com.atlassian.jira.\
+             plugin.system.issuetabpanels:all-tabpanel \\]\n\nNick Burch resolved TIKA-1249.  \n\
+             \\------------------------------\n"
+        ),
+        "{resolved}"
+    );
+    assert!(resolved.contains("\n\\> Vcard files detection  \n\\> ---------------------  \n"));
+    assert!(markdown(2097316).contains("comment-tabpanel\\&focusedCommentId=13912806"));
+}
