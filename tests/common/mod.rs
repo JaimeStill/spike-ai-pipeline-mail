@@ -50,3 +50,15 @@ pub fn built(name: &str, bytes: &[u8]) -> PathBuf {
     std::fs::write(&path, bytes).unwrap();
     path
 }
+
+/// A file's lowercase hex SHA-256, by sha256sum, so the tests take no hashing crate.
+pub fn sha256(path: &Path) -> String {
+    let out = Command::new("sha256sum").arg(path).output().unwrap();
+    assert!(out.status.success(), "sha256sum {}", path.display());
+    String::from_utf8(out.stdout)
+        .unwrap()
+        .split_whitespace()
+        .next()
+        .unwrap()
+        .to_owned()
+}

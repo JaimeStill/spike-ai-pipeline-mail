@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The fixtures generator: turns the hand-written .eml sources into .pst and .msg fixtures.
+       Run only through `MISE_ENV=fixtures mise run fixtures`; the check never builds it. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The lock file pins the transitive packages too, so a rerun restores the same graph. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode>true</RestoreLockedMode>
+  </PropertyGroup>
+
+  <!-- Pinned exactly: the manifest records these versions, and the outputs depend on them. -->
+  <ItemGroup>
+    <PackageReference Include="PstBuilder" Version="[1.3.0]" />
+    <PackageReference Include="PstBuilder.Eml" Version="[1.3.0]" />
+    <PackageReference Include="MsgKit" Version="[3.0.6]" />
+    <!-- Used directly, to read a source's Received date. 4.18.2, above what both packages ask for,
+         because the 4.18.1 they resolve to takes System.Security.Cryptography.Pkcs 10.0.0, with
+         advisories GHSA-2fmv-rv2c-59x7 and GHSA-846f-f764-76mx; 4.18.2 takes 10.0.13. -->
+    <PackageReference Include="MimeKit" Version="[4.18.2]" />
+  </ItemGroup>
+
+  <!-- The manifest's package versions are read from the lock file this build restored. -->
+  <ItemGroup>
+    <EmbeddedResource Include="packages.lock.json" LogicalName="packages.lock.json" />
+  </ItemGroup>
+
+</Project>

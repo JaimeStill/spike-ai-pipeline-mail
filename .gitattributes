@@ -1,0 +1,3 @@
+# The .eml sources are hashed in the generated fixtures' manifest and keep MIME's CRLF line
+# breaks, so git never converts them.
+*.eml -text

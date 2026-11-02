@@ -5,7 +5,7 @@ mod common;
 
 use std::path::Path;
 
-use common::{built, fixture, run};
+use common::{built, fixture, run, sha256};
 use serde_json::Value;
 
 /// The committed public stores, by path under tests/fixtures/pst.
@@ -291,13 +291,8 @@ fn every_store_has_a_matching_sources_entry() {
             assert!(entry[field].is_string(), "{}: {field}", entry["file"]);
         }
         let path = fixture(&format!("pst/{}", entry["file"].as_str().unwrap()));
-        let sum = std::process::Command::new("sha256sum")
-            .arg(&path)
-            .output()
-            .unwrap();
-        let sum = String::from_utf8(sum.stdout).unwrap();
         assert_eq!(
-            sum.split_whitespace().next(),
+            Some(sha256(&path).as_str()),
             entry["sha256"].as_str(),
             "{}",
             path.display()
