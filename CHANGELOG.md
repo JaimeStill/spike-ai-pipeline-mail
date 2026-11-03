@@ -8,7 +8,7 @@ file names are the CLI's output contract: a change to any of them is a change he
 
 ## [Unreleased]
 
-## [v0.1.0] - 2026-11-02
+## [v0.1.0] - 2026-11-03
 
 ### Added
 
