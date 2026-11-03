@@ -198,9 +198,11 @@ pub struct Attachment {
 #[derive(Serialize)]
 pub struct Skipped {
     pub line: &'static str,
-    /// "folder", "message" or "attachment".
+    /// "folder", "message" or "attachment", or, for a folder's table that can't be read,
+    /// "contents" or "hierarchy".
     pub kind: &'static str,
-    /// The node id of the folder the record is in; a skipped folder names its parent.
+    /// The node id of the folder the record is in; a skipped folder names its parent, and a
+    /// skipped table names the folder whose table it is.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub folder: Option<u32>,
     /// For an attachment, the node id of its message.

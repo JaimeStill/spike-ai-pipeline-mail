@@ -23,7 +23,8 @@ file names are the CLI's output contract: a change to any of them is a change he
   encoding, password flag, and display name); for a `.pst`, a `folder` line per folder,
   depth-first, before its messages (id, parent, path, display name, container class); a
   `message` line per item, whatever its class, in its folder's contents order; and a `skipped`
-  line wherever a folder, message, or attachment can't be read. A property with no value is left
+  line wherever a folder, message, attachment, or a folder's contents or hierarchy table can't be
+  read. A property with no value is left
   out, never written as `null`, and the same input always gives byte-identical output.
 - Messages: class, subject, sender and To, Cc, and Bcc recipients (name, address, address type),
   the submit, delivery, creation, and modification times in ISO 8601 UTC, importance,
@@ -58,6 +59,9 @@ file names are the CLI's output contract: a change to any of them is a change he
 - A string in a code page that can't be decoded is decoded lossily.
 - An Exchange address is written as stored; its SMTP address isn't written.
 - An item outlook-pst 1.2.0 can't open, such as a contact without a sub-node tree, is skipped.
+- A folder's table that can't be read is skipped only when the folder's count says it has items
+  or subfolders, and its reason can't name the fault: outlook-pst 1.2.0 gives such a table as no
+  table. A folder that claims no items or subfolders while it has some loses them silently.
 
 [Unreleased]: https://github.com/JaimeStill/spike-ai-pipeline-mail/compare/v0.1.0...HEAD
 [v0.1.0]: https://github.com/JaimeStill/spike-ai-pipeline-mail/releases/tag/v0.1.0

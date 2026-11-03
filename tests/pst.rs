@@ -401,6 +401,70 @@ fn corrupt_records_are_skipped_and_the_run_exits_0() {
     assert_eq!(messages, 1);
 }
 
+/// A copy of libyal's store with the byte at `offset` set to 0xAA.
+fn flipped(name: &str, offset: usize) -> std::path::PathBuf {
+    let mut bytes = std::fs::read(fixture("pst/libyal/outlook.pst")).unwrap();
+    bytes[offset] = 0xAA;
+    built(name, &bytes)
+}
+
+/// outlook-pst gives a folder's table it can't read as no table at all. A folder whose count
+/// says it has items or subfolders, and whose table is missing, gets a skipped line where the
+/// table's records would be, and a warning; the rest of the store is still read.
+#[test]
+fn a_folder_table_that_cannot_be_read_is_skipped() {
+    let reason = |table: &str, count: &str| {
+        format!(
+            "the {table} table can't be read, though {count} (outlook-pst 1.2.0 gives no reason)"
+        )
+    };
+
+    // The root's hierarchy table: every folder under the root is lost, but not silently.
+    let out = run(&[flipped("lost-hierarchy.pst", 40000)]);
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
+    let lost = reason("hierarchy", "PidTagSubfolders says it has subfolders");
+    assert_eq!(
+        out.stderr,
+        format!(
+            "spike-ai-pipeline-mail: warning: /Top of Personal Folders, hierarchy table: \
+             skipped: {lost}\n"
+        )
+    );
+    let lines = out.lines();
+    assert_eq!(lines.len(), 3);
+    assert_eq!(
+        lines[2],
+        serde_json::json!({
+            "line": "skipped",
+            "kind": "hierarchy",
+            "folder": 32802,
+            "reason": lost,
+        })
+    );
+
+    // Inbox's contents table: its one message gives way to the skipped line, and every other
+    // line is the intact store's.
+    let out = run(&[flipped("lost-contents.pst", 40704)]);
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
+    let lost = reason("contents", "PidTagContentCount gives it items");
+    assert_eq!(
+        out.stderr,
+        format!(
+            "spike-ai-pipeline-mail: warning: /Top of Personal Folders/Inbox, contents table: \
+             skipped: {lost}\n"
+        )
+    );
+    let mut intact = run(&[fixture("pst/libyal/outlook.pst")]).lines();
+    let at = intact.iter().position(|l| l["id"] == 2097188).unwrap();
+    intact[at] = serde_json::json!({
+        "line": "skipped",
+        "kind": "contents",
+        "folder": 33090,
+        "reason": lost,
+    });
+    assert_eq!(out.lines(), intact);
+}
+
 /// A panic reading an attachment poisons the mutex too. The store is reopened, and the open
 /// message, which holds the poisoned store, is opened again from it, so the message's other
 /// attachments are still read. The byte flipped here makes outlook-pst overflow on the first of

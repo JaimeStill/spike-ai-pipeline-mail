@@ -48,14 +48,18 @@ line says which they are.
 
 A folder, message, or attachment that can't be read inside a readable store, whether its reader
 returns an error or panics, is skipped: a `skipped` line takes its place, a warning goes to
-stderr, and the run goes on and exits 0. Every warning is one line:
+stderr, and the run goes on and exits 0. A folder whose contents or hierarchy table can't be read,
+while its PidTagContentCount says it has items or its PidTagSubfolders says it has subfolders,
+keeps its folder line and gets a `skipped` line where that table's records would be. Every warning
+is one line:
 
 ```text
 spike-ai-pipeline-mail: warning: <where>: <what>
 ```
 
 `<where>` is `store`, or a folder's path (`/Top of Personal Folders/Inbox`) followed by
-`, message <id>` and `, attachment <id>` as far down as the record is; in a `.msg`, `message`,
+`, contents table`, `, hierarchy table`, or `, message <id>` and `, attachment <id>` as far down
+as the record is; in a `.msg`, `message`,
 `message, attachment <n>`, or `named properties`. `<what>` is the reason, `skipped: <reason>` for
 a skipped record.
 
@@ -156,10 +160,10 @@ listed with its metadata alone, with a warning naming it.
 | Field | Value |
 | --- | --- |
 | `line` | `"skipped"` |
-| `kind` | `"folder"`, `"message"`, or `"attachment"`. |
-| `folder` | The node id of the folder the record is in; a skipped folder names its parent. |
+| `kind` | `"folder"`, `"message"`, or `"attachment"`; or `"contents"` or `"hierarchy"` for a folder's table. |
+| `folder` | The node id of the folder the record is in; a skipped folder names its parent, and a skipped table the folder whose table it is. |
 | `message` | An attachment's message's node id. |
-| `id` | In a `.pst`, the record's own node id, an attachment's within its message; in a `.msg`, an attachment's number, the one its storage's name ends in. |
+| `id` | Absent for a table. In a `.pst`, the record's own node id, an attachment's within its message; in a `.msg`, an attachment's number, the one its storage's name ends in. |
 | `reason` | Why it couldn't be read. |
 
 ## Known limits
@@ -178,6 +182,10 @@ listed with its metadata alone, with a warning naming it.
   (`PidTagSmtpAddress`) isn't written.
 - An item outlook-pst 1.2.0 can't open is skipped, such as a contact stored without a sub-node
   tree (`Missing Sub-Node Tree on message`).
+- A folder's table that can't be read is told from an empty one only by the folder's own count:
+  outlook-pst 1.2.0 gives an unreadable table as no table, without its error, so the skipped
+  line's reason can't name the fault. A folder whose count is wrong the other way, claiming no
+  items or no subfolders while it has some, loses them silently.
 
 ## Development
 

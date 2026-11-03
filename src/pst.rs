@@ -162,22 +162,45 @@ impl OpenMessage {
     }
 }
 
-/// A folder read whole: its properties and the node ids of its messages and subfolders.
+/// A folder read whole: its properties, the node ids of its messages and subfolders, and the
+/// reason each of its tables that went missing can't be read.
 struct FolderData {
     id: u32,
     props: Bag,
     messages: Vec<u32>,
     subfolders: Vec<u32>,
+    lost_contents: Option<String>,
+    lost_hierarchy: Option<String>,
 }
 
 fn read_folder(store: &dyn Store, entry_id: &EntryId) -> io::Result<FolderData> {
     let folder = store.open_folder(entry_id)?;
+    let props = bag(folder.properties().iter());
+    let contents = folder.contents_table();
+    let hierarchy = folder.hierarchy_table();
+    let lost_contents = (contents.is_none()
+        && integer(&props, tag::CONTENT_COUNT).is_some_and(|count| count > 0))
+    .then(|| lost("contents", "PidTagContentCount gives it items"));
+    let lost_hierarchy = (hierarchy.is_none()
+        && matches!(props.get(&tag::SUBFOLDERS), Some(Value::Boolean(true))))
+    .then(|| lost("hierarchy", "PidTagSubfolders says it has subfolders"));
     Ok(FolderData {
         id: u32::from(folder.properties().node_id()),
-        props: bag(folder.properties().iter()),
-        messages: row_ids(folder.contents_table()),
-        subfolders: row_ids(folder.hierarchy_table()),
+        messages: row_ids(contents),
+        subfolders: row_ids(hierarchy),
+        props,
+        lost_contents,
+        lost_hierarchy,
     })
+}
+
+/// The reason a folder's table is lost. outlook-pst 1.2.0 gives a table it can't read, or
+/// can't find, as no table at all, and its table reader isn't public, so the error itself
+/// can't be had: a missing table is told from an empty one only by the folder's own count. A
+/// folder whose count is wrong the other way, claiming no items or no subfolders while it has
+/// some, still loses them silently.
+fn lost(table: &str, count: &str) -> String {
+    format!("the {table} table can't be read, though {count} (outlook-pst 1.2.0 gives no reason)")
 }
 
 fn row_ids(table: Option<&Rc<dyn TableContext>>) -> Vec<u32> {
@@ -325,8 +348,22 @@ impl<W: Write> Walk<'_, W> {
             })
             .map_err(Fault::Output)?;
 
+        if let Some(reason) = data.lost_contents {
+            warn(
+                &format!("{place}, contents table"),
+                &format!("skipped: {reason}"),
+            );
+            self.skipped("contents", data.id, None, None, reason)?;
+        }
         for id in data.messages {
             self.message(data.id, id, &place)?;
+        }
+        if let Some(reason) = data.lost_hierarchy {
+            warn(
+                &format!("{place}, hierarchy table"),
+                &format!("skipped: {reason}"),
+            );
+            self.skipped("hierarchy", data.id, None, None, reason)?;
         }
         for id in data.subfolders {
             let read = self.read(|pst| {
@@ -340,7 +377,7 @@ impl<W: Write> Walk<'_, W> {
                         &format!("{place}, folder {id}"),
                         &format!("skipped: {reason}"),
                     );
-                    self.skipped("folder", data.id, None, id, reason)?;
+                    self.skipped("folder", data.id, None, Some(id), reason)?;
                 }
             }
         }
@@ -355,7 +392,7 @@ impl<W: Write> Walk<'_, W> {
             Ok(data) => data,
             Err(reason) => {
                 warn(&place, &format!("skipped: {reason}"));
-                return self.skipped("message", folder, None, id, reason);
+                return self.skipped("message", folder, None, Some(id), reason);
             }
         };
         let code_page = message_code_page(&data.props, self.code_page);
@@ -399,7 +436,7 @@ impl<W: Write> Walk<'_, W> {
         }
         self.out.write(&message).map_err(Fault::Output)?;
         for (attachment, reason) in skipped {
-            self.skipped("attachment", folder, Some(id), attachment, reason)?;
+            self.skipped("attachment", folder, Some(id), Some(attachment), reason)?;
         }
         Ok(())
     }
@@ -432,13 +469,14 @@ impl<W: Write> Walk<'_, W> {
         }
     }
 
-    /// Writes the skipped line of a record whose warning is already written.
+    /// Writes the skipped line of a record whose warning is already written. A lost table has
+    /// no id of its own; its folder is the folder whose table it is.
     fn skipped(
         &mut self,
         kind: &'static str,
         folder: u32,
         message: Option<u32>,
-        id: u32,
+        id: Option<u32>,
         reason: String,
     ) -> Result<(), Fault> {
         self.out
@@ -447,7 +485,7 @@ impl<W: Write> Walk<'_, W> {
                 kind,
                 folder: Some(folder),
                 message,
-                id: Some(id),
+                id,
                 reason,
             })
             .map_err(Fault::Output)

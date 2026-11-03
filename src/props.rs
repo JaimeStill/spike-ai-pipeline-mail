@@ -31,6 +31,8 @@ pub mod tag {
     pub const EMAIL_ADDRESS: u16 = 0x3003;
     pub const CREATION_TIME: u16 = 0x3007;
     pub const LAST_MODIFICATION_TIME: u16 = 0x3008;
+    pub const CONTENT_COUNT: u16 = 0x3602;
+    pub const SUBFOLDERS: u16 = 0x360A;
     pub const CONTAINER_CLASS: u16 = 0x3613;
     pub const ATTACH_DATA: u16 = 0x3701;
     pub const ATTACH_EXTENSION: u16 = 0x3703;

@@ -159,6 +159,19 @@ fn an_unreadable_store_root_is_refused() {
     assert_eq!(out.stderr.lines().count(), 1);
 }
 
+/// A store whose header and root read but whose IPM subtree doesn't: the byte flipped here is
+/// in the data block of libyal's store's IPM subtree folder, so its block trailer's CRC fails.
+#[test]
+fn an_unreadable_ipm_subtree_is_refused() {
+    let mut bytes = std::fs::read(fixture("pst/libyal/outlook.pst")).unwrap();
+    bytes[30784] ^= 0xFF;
+    let pst = built("bad-ipm-subtree.pst", &bytes);
+    assert_refused(
+        &[&pst],
+        "the IPM subtree can't be read: Invalid BLOCKTRAILER dwCRC: 0x1D954937",
+    );
+}
+
 /// A compound file cfb can't read is refused: here, a bare header, its sectors all zero.
 #[test]
 fn an_unreadable_compound_file_is_refused() {
