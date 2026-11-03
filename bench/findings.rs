@@ -7,7 +7,9 @@
 //! - the generated fixtures': tests/fixtures/generated/truth.json, the hand truth of the .eml
 //!   sources, for pst/mailbox.pst and each msg/*.msg;
 //! - Tika's two stores' threading fields: tests/fixtures/pst/tika-threading.json;
-//! - Tika's .msg files': tests/fixtures/msg/tika-truth.json, the values Tika's own tests assert.
+//! - Tika's .msg files': tests/fixtures/msg/tika-truth.json, the values Tika's own tests assert;
+//! - Apache POI's .msg files': tests/fixtures/msg/poi-truth.json, the values POI's own HSMF tests
+//!   assert.
 //!
 //! A generated file doesn't hold all of its source: PST Builder and MsgKit each leave fields out
 //! or store them otherwise. tests/generated.rs states what each holds and asserts the files hold
@@ -107,6 +109,7 @@ fn run(args: &Args) -> Result<(), String> {
         "generated_msg": generated_msg(&args.bin, &fixtures.join("generated"))?.into_json(),
         "tika_pst_threading": tika_threading(&args.bin, &fixtures)?.into_json(),
         "tika_msg": tika_msg(&args.bin, &fixtures)?.into_json(),
+        "poi_msg": poi_msg(&args.bin, &fixtures)?.into_json(),
     });
 
     let scale_record = read_json(&args.scale.join("scale.json"))?;
@@ -694,17 +697,64 @@ fn tika_msg(bin: &Path, fixtures: &Path) -> Result<Score, String> {
         score.files.push(format!("msg/{file}"));
         let got = lines.iter().find(|l| l["line"] == "message");
         for (pointer, want) in entry["fields"].as_object().into_iter().flatten() {
-            let kind = pointer
-                .split('/')
-                .filter(|s| !s.is_empty() && s.parse::<usize>().is_err())
-                .map(kind_name)
-                .collect::<Vec<_>>()
-                .join(" ");
             let read = got.and_then(|m| m.pointer(pointer));
-            score.score(file, pointer, &kind, want, read, false);
+            score.score(file, pointer, &pointer_kind(pointer), want, read, false);
         }
     }
     Ok(score)
+}
+
+/// Apache POI's .msg files against the values POI's HSMF tests assert, scored as Tika's are:
+/// an equal field by its JSON pointer, and, as their own kinds, the Java String.hashCode POI
+/// asserts of a body and the length of a recipient list. msgClassAppointment.msg has no
+/// assertions; it is read, so it must still exit 0.
+fn poi_msg(bin: &Path, fixtures: &Path) -> Result<Score, String> {
+    let truth = read_json(&fixtures.join("msg/poi-truth.json"))?;
+    let mut score = Score::new();
+    for (file, entry) in truth["messages"].as_object().into_iter().flatten() {
+        let lines = lines(bin, &fixtures.join("msg").join(file))?;
+        score.files.push(format!("msg/{file}"));
+        let got = lines.iter().find(|l| l["line"] == "message");
+        for (pointer, want) in entry["fields"].as_object().into_iter().flatten() {
+            let read = got.and_then(|m| m.pointer(pointer));
+            score.score(file, pointer, &pointer_kind(pointer), want, read, false);
+        }
+        for (pointer, want) in entry["java_hashes"].as_object().into_iter().flatten() {
+            let read = got
+                .and_then(|m| m.pointer(pointer))
+                .and_then(Value::as_str)
+                .map(|text| json!(java_hash(text)));
+            let kind = format!("{} hash", pointer_kind(pointer));
+            score.score(file, pointer, &kind, want, read.as_ref(), false);
+        }
+        for (pointer, want) in entry["lengths"].as_object().into_iter().flatten() {
+            let read = got
+                .and_then(|m| m.pointer(pointer))
+                .and_then(Value::as_array)
+                .map(|list| json!(list.len()));
+            let kind = format!("{} count", pointer_kind(pointer));
+            score.score(file, pointer, &kind, want, read.as_ref(), false);
+        }
+    }
+    Ok(score)
+}
+
+/// Java's String.hashCode, as POI's tests assert it: s[0]*31^(n-1) + ... + s[n-1] over UTF-16
+/// code units, wrapping.
+fn java_hash(text: &str) -> i32 {
+    text.encode_utf16().fold(0i32, |hash, unit| {
+        hash.wrapping_mul(31).wrapping_add(i32::from(unit))
+    })
+}
+
+/// A JSON pointer's field kind: its names less its indexes, as the tables write them.
+fn pointer_kind(pointer: &str) -> String {
+    pointer
+        .split('/')
+        .filter(|s| !s.is_empty() && s.parse::<usize>().is_err())
+        .map(kind_name)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// A field's name as the tables write it.
@@ -962,6 +1012,7 @@ fn print_summary(results: &Value) {
             "Tika's stores against the threading truth",
         ),
         ("tika_msg", "Tika's .msg against Tika's assertions"),
+        ("poi_msg", "Apache POI's .msg against POI's assertions"),
     ] {
         let score = &results["recovery"][group];
         println!("\n### {title}\n");

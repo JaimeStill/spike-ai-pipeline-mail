@@ -69,7 +69,7 @@ Every line is one JSON object, its `line` field naming its kind. A property with
 out, never written as `null`, and so is an empty list. Strings are decoded by their code page:
 Unicode properties as UTF-16, 8-bit ones by the message's code page, else the store's; a `.msg`,
 which has no store, falls back to its locale's ANSI code page, then its internet code page unless
-that is UTF-8, then its parent message's, then Windows-1252. A string in a code page that can't
+it is a Unicode encoding, then its parent message's, then Windows-1252. A string in a code page that can't
 be decoded is decoded lossily, with a warning. Times are ISO 8601 UTC, to the second. The same
 input always gives byte-identical output.
 

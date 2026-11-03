@@ -24,15 +24,17 @@ file names are the CLI's output contract: a change to any of them is a change he
   depth-first, before its messages (id, parent, path, display name, container class); a
   `message` line per item, whatever its class, in its folder's contents order; and a `skipped`
   line wherever a folder, message, attachment, or a folder's contents or hierarchy table can't be
-  read. A property with no value is left
-  out, never written as `null`, and the same input always gives byte-identical output.
+  read, its `kind` `"folder"`, `"message"`, `"attachment"`, `"contents"`, or `"hierarchy"`. A
+  property with no value is left out, never written as `null`, and the same input always gives
+  byte-identical output.
 - Messages: class, subject, sender and To, Cc, and Bcc recipients (name, address, address type),
   the submit, delivery, creation, and modification times in ISO 8601 UTC, importance,
   sensitivity, the raw transport headers, and the threading fields as stored (Message-ID,
   In-Reply-To, References, conversation topic, conversation index in hex). Strings are decoded by
   their code page, an undecodable one lossily with a warning: a `.pst` message's 8-bit strings by
   its code page, else the store's; a `.msg`'s by its code page, else its locale's ANSI code page,
-  else its internet code page unless that is UTF-8.
+  else its internet code page unless it is a Unicode encoding, else its parent message's, else
+  Windows-1252.
 - Bodies: the stored plain text, HTML (by its internet code page, else its `<meta>` charset), and
   RTF (decompressed); derived, the HTML recovered from RTF that encapsulates it (`\fromhtml1`) and
   a Markdown body for every message, from the HTML, else the HTML from RTF, else the plain text
