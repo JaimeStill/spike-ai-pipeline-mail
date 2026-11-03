@@ -1,12 +1,11 @@
 # Finding: the mail CLI's fields against the truth, and its time per store
 
-This page records the CLI's finding for the root's evidence 16 (`context/README.md`, item 16) of
-task `mail-cli` (the root's goal record, `context/goals/experiment.ai.spike-ai-pipeline.md`), for
-the CLI alone: the fields it recovers, per field kind, against the hand truth of the generated and
+This page records the CLI's part of the spike's evidence 16 (the root's `context/README.md`,
+item 16): the fields it recovers, per field kind, against the hand truth of the generated and
 public fixtures, and its time and peak memory on every committed store, on plaso's 59 MB store,
-and on a generated 2.1 GB store. It has no baseline against other readers; that is out of the
-task's scope. Thread grouping and attachment routing, the rest of evidence 16, are processing's
-email finding.
+and on a generated 2.1 GB store. It measures the CLI alone, with no baseline against other
+readers. Thread grouping and attachment routing, the rest of evidence 16, belong to processing's
+planned email finding.
 
 Every number here comes from run
 [`mail-cli/runs/v0.1.0/results.json`](mail-cli/runs/v0.1.0/results.json), on the laptop on
@@ -27,7 +26,8 @@ every miss and every run. A run is kept only when it is recorded ("Rerunning").
 ## The machine
 
 The laptop: Intel Core Ultra 9 185H, 22 logical CPUs, 32 GB of memory (32,284,144 kB), Linux
-7.2.15-1-omarchy (Omarchy, on Arch), the stores on a btrfs file system on a device-mapper volume, on an NVMe disk.
+7.2.15-1-omarchy (Omarchy, on Arch), the stores on a btrfs file system on a device-mapper
+volume, on an NVMe disk.
 The scale store and plaso's were read from the page cache: the scale store had just been written
 by the generator, and each store's runs followed one another, so no run read the disk cold (that
 needs root to drop the cache). `--attachments` writes went to the page cache too, unsynced.
@@ -87,8 +87,8 @@ The gaps, each the generator's (tests/generated.rs, header comment):
   `application/octet-stream` by its own table, and attaches a forwarded message as a by-value
   `.eml` file named by its subject, not as an embedded message.
 
-So no generated file tests the threading fields or embedded messages; the public fixtures below
-do, and the tests' own embedded messages, built in `tests/msg.rs`.
+No generated file therefore tests the threading fields or embedded messages. The public
+fixtures below test them, as do the embedded messages `tests/msg.rs` builds.
 
 ### Tika's stores, against the threading truth
 
@@ -199,8 +199,9 @@ time: one core does the work, reading the store in order.
 [log2timeline/plaso](https://github.com/log2timeline/plaso) (Apache-2.0) at f5bf35f, the commit
 that added it, SHA-256 `bab64f3589f8ce758df9e595b89a5e4b9be159929e49100397152fdcc7bd6013`. The run
 fetches it once into `.state/findings/plaso/` and checks it against that hash on every run; it
-is never committed. It is a real Outlook Unicode store: 18 folders, 539 `IPM.Note` messages and 1 `IPM.Contact`, 6 attachment records (5
-distinct contents, 14.5 MB; one spreadsheet is attached twice). Three items of its Suggested
+is never committed. It is a real Outlook Unicode store: 18 folders, 539 `IPM.Note` messages
+and 1 `IPM.Contact`, and 6 attachment records (5 distinct contents, 14.5 MB; one spreadsheet is
+attached twice). Three items of its Suggested
 Contacts folder are skipped, each with a warning: outlook-pst 1.2.0 can't open them
 (`Missing Sub-Node Tree on message`), as with java-libpst's `dist-list.pst`.
 
@@ -225,10 +226,10 @@ Contacts folder are skipped, each with a warning: outlook-pst 1.2.0 can't open t
 The store's bytes differ on every build (PST Builder's random store UID and search keys), so its
 content is what is pinned: three full builds of seed 16 before the run, about 33 s each, gave the
 same content SHA-256 and the same 2,141,594,624-byte size, and the CLI's stdout on the last two
-was byte-identical (SHA-256 `441b5c31...c04b6b`, the run's own stdout too); two 500-message builds
-also gave byte-identical CLI output. The CLI read every message: no record skipped, no warning, and with
-`--attachments` one file for each of the 17,828 attachments and 3,374 inline images (21,202, every
-content distinct).
+was byte-identical (SHA-256 `441b5c31...c04b6b`, the run's own stdout too); two 500-message
+builds also gave byte-identical CLI output. The CLI read every message: no record skipped, no
+warning, and with `--attachments` one file for each of the 17,828 attachments and 3,374 inline
+images (21,202, every content distinct).
 
 ### The release binary against a glibc build
 
@@ -279,7 +280,7 @@ The CLI's, as its README lists them, and what this run shows of each:
   some loses them silently. No store here has an unreadable folder table: every skipped line in
   this run is a message. It is tested on a copy of libyal's store with one byte changed.
 
-And of the finding itself: the times are warm (the page cache held every store); the scale store
+The finding has limits of its own: the times are warm (the page cache held every store); the scale store
 is synthetic, made by one generator whose gaps (no threading fields, no embedded messages, always
 normal importance) it shares with the generated fixtures; and only plaso's store is a real store
 of any size.
@@ -306,14 +307,15 @@ mise run findings -- --record [name]
 
 That copies the results to `docs/findings/mail-cli/runs/<name>/results.json`, `<name>` by default
 `<date>-<n>`, the first such directory that doesn't exist; a name is letters, digits, `.`, `_`,
-and `-`, not starting with `.`, and an existing run directory is never overwritten. Run `v0.1.0`'s
-scoring and timing took 116 s, after the builds. `FINDINGS_RUNS` (3) sets the runs of plaso's store and the scale store; the
-generator's `scale` command takes `--seed <n>` and `--messages <n>` after `--`.
+and `-`, not starting with `.`, and an existing run directory is never overwritten. Run
+`v0.1.0`'s scoring and timing took 116 s, after the builds. `FINDINGS_RUNS` (3) sets the runs of
+plaso's store and the scale store; the generator's `scale` command takes `--seed <n>` and
+`--messages <n>` after `--`.
 
 In `results.json` (schema 1): `cli` is the binary's version, commit, SHA-256, and size; `machine`
 the CPU, logical CPUs, memory, and kernel; `recovery` holds, for each table (`generated_pst`,
-`generated_msg`, `tika_pst_threading`, `tika_msg`, `poi_msg`), its files, each kind's counts, and every miss
-with its file, message, kind, outcome, and expected and written values; `rusage_floor` the
+`generated_msg`, `tika_pst_threading`, `tika_msg`, `poi_msg`), its files, each kind's counts, and
+every miss with its file, message, kind, outcome, and expected and written values; `rusage_floor` the
 wrapper's own; `plaso` the store's source and SHA-256; `scale` the store's size and its
 `scale.json`; and `timing` each store's runs (status, exit code, peak memory, wall, user, and
 system time), median wall, peak, stdout size, whether stdout was the same every run, its lines by

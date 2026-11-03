@@ -1,5 +1,6 @@
 //! String decoding by code page, through codepage-strings. PT_UNICODE is UTF-16LE, code page
-//! 1200; PT_STRING8 is in the code page of its message, else of its store. A string that isn't
+//! 1200; PT_STRING8 is in the code page of its message, else of its store ([`message_code_page`]),
+//! or for a .msg, which has no store, the one [`msg_code_page`] falls back to. A string that isn't
 //! valid in its code page, or whose code page codepage-strings can't decode, is decoded lossily
 //! and noted, and the caller turns each note into a warning.
 

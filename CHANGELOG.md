@@ -35,10 +35,11 @@ file names are the CLI's output contract: a change to any of them is a change he
   its code page, else the store's; a `.msg`'s by its code page, else its locale's ANSI code page,
   else its internet code page unless it is a Unicode encoding, else its parent message's, else
   Windows-1252.
-- Bodies: the stored plain text, HTML (by its internet code page, else its `<meta>` charset), and
-  RTF (decompressed); derived, the HTML recovered from RTF that encapsulates it (`\fromhtml1`) and
-  a Markdown body for every message, from the HTML, else the HTML from RTF, else the plain text
-  read literally.
+- Bodies: the stored plain text, HTML (by its internet code page, else its `<meta>` charset, else
+  as UTF-8 when valid, else by the message's code page), and RTF (decompressed); under `derived`,
+  the HTML recovered from RTF that encapsulates it (`\fromhtml1`) and a Markdown body for every
+  message, made from the HTML, else the HTML from RTF, else the plain text, escaped to read
+  literally.
 - Attachments: each record's file name is the lowercase hex SHA-256 of its content plus its short
   alphanumeric stored extension, with its filename, MIME type, content-id, inline flag, attach
   method, and size. `--attachments <dir>` writes each distinct content once, as stored. In a
