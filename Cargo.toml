@@ -8,7 +8,8 @@ repository = "https://github.com/JaimeStill/spike-ai-pipeline-mail"
 publish = false
 
 [dependencies]
-# Pinned exactly: the CLI works around known faults of these releases (src/pst.rs).
+# Pinned exactly: the CLI works around known faults of these releases, outlook-pst's in
+# src/pst.rs and codepage-strings' missing US-ASCII in src/codepage.rs.
 outlook-pst = "=1.2.0"
 codepage-strings = "=1.0.2"
 # A charset an HTML body's <meta> names, to its code page: encoding_rs knows the WHATWG labels
