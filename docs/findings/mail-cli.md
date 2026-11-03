@@ -1,0 +1,278 @@
+# Finding: the mail CLI's fields against the truth, and its time per store
+
+This page records the CLI's finding for the root's evidence 16 (`context/README.md`, item 16) of
+task `mail-cli` (the root's goal record, `context/goals/experiment.ai.spike-ai-pipeline.md`), for
+the CLI alone: the fields it recovers, per field kind, against the hand truth of the generated and
+public fixtures, and its time and peak memory on every committed store, on plaso's 59 MB store,
+and on a generated 2.1 GB store. It has no baseline against other readers; that is out of the
+task's scope. Thread grouping and attachment routing, the rest of evidence 16, are processing's
+email finding.
+
+Every number here comes from run
+[`mail-cli/runs/v0.1.0/results.json`](mail-cli/runs/v0.1.0/results.json), on the laptop on
+2026-11-02 from 23:57:02 to 23:58:58 UTC, CLI 0.1.0 at commit a44854a, the static musl release
+binary the check builds for x86_64 (3,568,672 bytes, SHA-256 `57931754...e6e62f`); that file has
+every miss and every run. A run is kept only when it is recorded ("Rerunning").
+
+## At a glance
+
+| Question | Answer |
+|---|---|
+| Does the CLI recover what the files hold? | **Yes.** Over the generated fixtures, every field the truth expects is recovered or is one the generator doesn't store (180 expected: 147 recovered, 33 generator gaps, 0 mismatched, 0 missing). Over Tika's stores' threading truth, 47 of 47, and every absence as the truth says. Over Tika's .msg assertions, 21 of 22. |
+| What does it miss? | One field, by design: an Exchange recipient's SMTP address. The CLI writes the address as stored, `PidTagEmailAddress` (an X.500 DN for an `EX` recipient); Tika reports `PidTagSmtpAddress`, which the CLI doesn't write. |
+| How fast? | plaso's 59 MB store, 540 messages: **1.57 s**. The 2.1 GB scale store, 50,000 messages: **13.06 s**, **14.53 s** with `--attachments` writing 1.88 GB. Median of 3 runs each. |
+| How much memory? | Peak resident memory **42 MiB** on plaso's store and **66 to 67 MiB** on the scale store: it barely grows with the store. |
+| Anything else? | The static musl binary takes 2.0 to 2.3 times the glibc build's time on the large stores (13.06 s against 6.47 s; 1.57 s against 0.67 s), at about a tenth less memory. plaso's store has 3 contacts outlook-pst 1.2.0 can't open, skipped with a warning each. |
+
+## The machine
+
+The laptop: Intel Core Ultra 9 185H, 22 logical CPUs, 32 GB of memory (32,284,144 kB), Linux
+7.2.15-1-omarchy (Omarchy, on Arch), the stores on a btrfs file system on a device-mapper volume, on an NVMe disk.
+The scale store and plaso's were read from the page cache: the scale store had just been written
+by the generator, and each store's runs followed one another, so no run read the disk cold (that
+needs root to drop the cache). `--attachments` writes went to the page cache too, unsynced.
+
+## Fields recovered per kind
+
+Each row counts the fields of one kind the truth expects, summed over the files of its table:
+
+- **Recovered**: the CLI wrote the truth's value (bodies compared with CRLF made LF, as the truth
+  writes line breaks).
+- **Generator gap**: the generated file doesn't hold the truth's value, and the CLI wrote what the
+  file holds instead: nothing, or the other value tests/generated.rs's header documents for that
+  generator (and asserts the file holds). A gap is counted only on that exact other value, so it
+  never hides a CLI fault.
+- **Mismatched**: the CLI wrote another value. **Missing**: it wrote none.
+
+### The generated fixtures, against truth.json
+
+`tests/fixtures/generated/truth.json` is the hand truth of the eight `.eml` sources, written from
+the sources as a mail reader reads them, not from the CLI's output. `pst/mailbox.pst` holds all
+eight, built by PST Builder 1.3.0 (PstBuilder.Eml); each also became one `msg/*.msg`, built by
+MsgKit 3.0.6. A message is found by its subject; a recipient is compared by name and address, by
+address alone where the source gives no name; an attachment is found by its content's SHA-256,
+then its parts compared.
+
+| Field kind | .pst: expected | recovered | generator gap | mismatched or missing | .msg: expected | recovered | generator gap | mismatched or missing |
+|---|---|---|---|---|---|---|---|---|
+| Message (found by subject) | 8 | 8 | 0 | 0 | 8 | 8 | 0 | 0 |
+| Folder | 8 | 8 | 0 | 0 | | | | |
+| Subject | 8 | 8 | 0 | 0 | 8 | 8 | 0 | 0 |
+| Sender | 8 | 8 | 0 | 0 | 8 | 8 | 0 | 0 |
+| Recipient (To) | 9 | 9 | 0 | 0 | 9 | 9 | 0 | 0 |
+| Recipient (Cc) | 2 | 2 | 0 | 0 | 2 | 2 | 0 | 0 |
+| Recipient (Bcc) | 1 | 0 | 1 | 0 | 1 | 1 | 0 | 0 |
+| Submit time | 8 | 8 | 0 | 0 | 8 | 8 | 0 | 0 |
+| Delivery time | 6 | 6 | 0 | 0 | 6 | 0 | 6 | 0 |
+| Importance | 1 | 0 | 1 | 0 | 1 | 1 | 0 | 0 |
+| Message-ID | 8 | 0 | 8 | 0 | 8 | 0 | 8 | 0 |
+| In-Reply-To | 1 | 0 | 1 | 0 | 1 | 0 | 1 | 0 |
+| References | 2 | 0 | 2 | 0 | 2 | 0 | 2 | 0 |
+| Body, plain text | 7 | 7 | 0 | 0 | 7 | 7 | 0 | 0 |
+| Body, HTML | 3 | 3 | 0 | 0 | 3 | 3 | 0 | 0 |
+| Attachment content (SHA-256 and size) | 3 | 3 | 0 | 0 | 3 | 3 | 0 | 0 |
+| Attachment filename | 3 | 3 | 0 | 0 | 3 | 3 | 0 | 0 |
+| Attachment MIME type | 3 | 3 | 0 | 0 | 3 | 2 | 1 | 0 |
+| Attachment content-id | 1 | 1 | 0 | 0 | 1 | 1 | 0 | 0 |
+| Attachment inline flag | 3 | 3 | 0 | 0 | 3 | 3 | 0 | 0 |
+| Embedded message | 1 | 0 | 1 | 0 | 1 | 0 | 1 | 0 |
+| **All** | **94** | **80** | **14** | **0** | **86** | **67** | **19** | **0** |
+
+The gaps, each the generator's (tests/generated.rs, header comment):
+
+- **PST Builder** writes no Bcc and no threading fields, always normal importance, and skips a
+  message/rfc822 part, so the store has no embedded message.
+- **MsgKit** takes the Date header as the delivery time, stores Message-ID and In-Reply-To without
+  angle brackets and References as its last ID alone, types a `.csv` attachment
+  `application/octet-stream` by its own table, and attaches a forwarded message as a by-value
+  `.eml` file named by its subject, not as an embedded message.
+
+So no generated file tests the threading fields or embedded messages; the public fixtures below
+do, and the tests' own embedded messages, built in `tests/msg.rs`.
+
+### Tika's stores, against the threading truth
+
+`tests/fixtures/pst/tika-threading.json` is hand truth for every message of Tika's
+`testPST.pst` (7 messages) and `testPST_variousBodyTypes.pst` (4), checked against each message's
+own transport headers and Thread-Index (its note says how). A null in it is a field the store
+doesn't hold, counted under "absent".
+
+| Field kind | Expected | Recovered | Mismatched | Missing | Absent, as the truth says |
+|---|---|---|---|---|---|
+| Message-ID | 11 | 11 | 0 | 0 | |
+| In-Reply-To | 7 | 7 | 0 | 0 | 4 of 4 |
+| References | 7 | 7 | 0 | 0 | 4 of 4 |
+| Conversation topic | 11 | 11 | 0 | 0 | |
+| Conversation index | 11 | 11 | 0 | 0 | |
+| **All** | **47** | **47** | **0** | **0** | **8 of 8** |
+
+### Tika's .msg files, against Tika's assertions
+
+`tests/fixtures/msg/tika-truth.json` holds what Apache Tika's own `OutlookParserTest` (apache/tika
+48010f83, its SHA-256 recorded there) asserts of the four committed Tika `.msg` files, each value
+mapped to the CLI field that holds it, written as a JSON pointer into the message line.
+Assertions on content, on Tika-only metadata, or by prefix are left out. `tests/msg.rs` checks the
+same file.
+
+| Field kind | Expected | Recovered | Mismatched | Missing |
+|---|---|---|---|---|
+| Subject | 1 | 1 | 0 | 0 |
+| Sender name | 1 | 1 | 0 | 0 |
+| Sender address | 1 | 1 | 0 | 0 |
+| To name | 1 | 1 | 0 | 0 |
+| To address | 1 | 0 | 1 | 0 |
+| Message-ID | 1 | 1 | 0 | 0 |
+| In-Reply-To | 1 | 1 | 0 | 0 |
+| References | 1 | 1 | 0 | 0 |
+| Conversation index | 1 | 1 | 0 | 0 |
+| Attachment inline flag | 11 | 11 | 0 | 0 |
+| Attachment method | 1 | 1 | 0 | 0 |
+| Attachment filename | 1 | 1 | 0 | 0 |
+| **All** | **22** | **21** | **1** | **0** |
+
+The mismatch is `testMSG_chinese.msg`'s To address: Tika asserts `tests.chang@fengttt.com`, the
+recipient's `PidTagSmtpAddress`; the CLI writes its `PidTagEmailAddress` as stored,
+`/O=FT GROUP/OU=FT/CN=RECIPIENTS/CTestsiaChang` with address type `EX` (an independent reader,
+olefile, shows the stream holds exactly that). The CLI writes addresses as stored and has no SMTP
+address field: a known limit, in the README.
+
+## Time and peak memory
+
+Each run started through `bench/rusage.c`, office's wrapper, which forks the CLI and reports its
+own `wait4` rusage: peak resident memory (`ru_maxrss`) and wall time from fork to exit, the
+process's start and exit included. The wrapper's floor, `/bin/true` through it, was 1,528 KiB and
+0.59 ms. stdout and stderr went to files. plaso's store and the scale store ran 3 times each way,
+back to back; each committed store once each way. Every store's stdout was byte-identical across
+its runs and with and without `--attachments`.
+
+### plaso's store and the scale store
+
+| Store | Size | `--attachments` | Median wall, of 3 | Runs | Peak memory, most of 3 | Lines out | Written |
+|---|---|---|---|---|---|---|---|
+| plaso's `nromanoff@stark-research-labs.com.pst` | 59,442,176 B | no | 1.572 s | 1.543, 1.641, 1.572 s | 41.6 MiB | 18 folders, 540 messages, 3 skipped | |
+| plaso's | | yes | 1.606 s | 1.553, 1.644, 1.606 s | 41.5 MiB | the same | 5 files, 14,533,959 B |
+| scale store | 2,141,594,624 B | no | 13.059 s | 12.937, 13.058, 13.144 s | 65.6 MiB | 17 folders, 50,000 messages | |
+| scale store | | yes | 14.534 s | 14.548, 14.534, 14.429 s | 66.9 MiB | the same | 21,202 files, 1,877,202,474 B |
+
+CPU time, per run: plaso's about 1.3 s user and 0.24 s system; the scale store's about 9.8 s user
+and 3.2 s system, 10.2 s and 4.0 s with `--attachments`. User and system time add up to the wall
+time: one core does the work, reading the store in order.
+
+**plaso's store** is `test_data/nromanoff@stark-research-labs.com.pst` from
+[log2timeline/plaso](https://github.com/log2timeline/plaso) (Apache-2.0) at f5bf35f, the commit
+that added it, SHA-256 `bab64f3589f8ce758df9e595b89a5e4b9be159929e49100397152fdcc7bd6013`. The run
+fetches it once into `.state/findings/plaso/` and checks it against that hash on every run; it
+is never committed. It is a real Outlook Unicode store: 18 folders, 539 `IPM.Note` messages and 1 `IPM.Contact`, 6 attachment records (5
+distinct contents, 14.5 MB; one spreadsheet is attached twice). Three items of its Suggested
+Contacts folder are skipped, each with a warning: outlook-pst 1.2.0 can't open them
+(`Missing Sub-Node Tree on message`), as with java-libpst's `dist-list.pst`.
+
+**The scale store** is generated, never committed: `MISE_ENV=fixtures mise run scale`, seed 16,
+50,000 messages (`generator/Scale.cs`; its parameters and counts are in the results file's
+`scale.record`):
+
+| Parameter | Value |
+|---|---|
+| Seed | 16 |
+| Messages | 50,000, each MIME the generator writes, added through PstBuilder.Eml 1.3.0 |
+| Folders | 12 by weight, three deep, one non-ASCII (`Inbox/Projects/Été`); 17 with their parents, the root, and PST Builder's own Deleted Items |
+| People | 200, names from Latin, Cyrillic, and CJK lists |
+| Bodies | plain only 30%, plain and HTML 60%, HTML only 10%; 1 to 6 paragraphs of 1 to 5 sentences |
+| Replies | 30%, with In-Reply-To and References (PST Builder doesn't store them) |
+| Inline images | 10% of the HTML messages, 2 to 32 KiB, by `cid:` |
+| Attachments | 18% of messages carry 1 to 3, of eight types, log-uniform from 256 B to 512 KiB; 0.2% carry one more of 1 to 16 MiB |
+| Built | 34,889 with HTML (4,946 HTML only), 14,977 replies, 3,374 inline images, 17,828 attachments of 1,818,207,086 B, the largest 16,736,336 B; 2,690,853,493 B of MIME |
+| Tools | .NET SDK 10.0.402 (runtime 10.0.13), PstBuilder and PstBuilder.Eml 1.3.0, MimeKit 4.18.2 |
+| Content SHA-256 | `d40792a45510dc0d4b7a3abc527848095d4f255bae26d853ee7f9a87119362b4`, over every message's folder and MIME bytes in order |
+
+The store's bytes differ on every build (PST Builder's random store UID and search keys), so its
+content is what is pinned: three full builds of seed 16 before the run, about 33 s each, gave the
+same content SHA-256 and the same 2,141,594,624-byte size, and the CLI's stdout on the last two
+was byte-identical (SHA-256 `441b5c31...c04b6b`, the run's own stdout too); two 500-message builds
+also gave byte-identical CLI output. The CLI read every message: no record skipped, no warning, and with
+`--attachments` one file for each of the 17,828 attachments and 3,374 inline images (21,202, every
+content distinct).
+
+### The release binary against a glibc build
+
+The release binary is static musl. The same commit built for the host's glibc target
+(`cargo build --release`, never released) was timed beside it, without `--attachments`:
+
+| Store | musl (released): median wall | peak | glibc: median wall | peak |
+|---|---|---|---|---|
+| plaso's | 1.572 s | 41.6 MiB | 0.673 s | 46.5 MiB |
+| scale store | 13.059 s | 65.6 MiB | 6.473 s | 74.5 MiB |
+
+musl's build takes 2.0 (scale store) to 2.3 (plaso's) times as long: on the scale store 9.8 s of
+user time against 5.7 s, and 3.2 s of system time against 0.7 s, which points at musl's allocator
+rather than the reading; the run doesn't profile it. It uses 11 to 12% less memory.
+
+### The committed stores
+
+One run each way; each is under 7 ms and 3 MiB, mostly the process's own start:
+
+| Store | Size | Wall, without and with `--attachments` | Peak memory | Messages, folders, skipped | Warnings | Written with `--attachments` |
+|---|---|---|---|---|---|---|
+| `generated/pst/mailbox.pst` | 271,360 B | 2.6, 3.1 ms | 2.4, 2.4 MiB | 8, 9, 0 | 0 | 3 files, 137 B |
+| `pst/tika/testPST.pst` | 2,302,976 B | 7.5, 7.2 ms | 2.8, 2.6 MiB | 7, 2, 0 | 1: an embedded message, listed without content | none |
+| `pst/tika/testPST_variousBodyTypes.pst` | 271,360 B | 5.0, 4.9 ms | 2.2, 2.6 MiB | 4, 4, 0 | 0 | none |
+| `pst/libyal/outlook.pst` | 271,360 B | 5.3, 5.2 ms | 2.6, 2.8 MiB | 2, 17, 0 | 0 | 11 files, 21,871 B |
+| `pst/java-libpst/dist-list.pst` | 271,360 B | 1.8, 2.0 ms | 2.2, 2.4 MiB | 2, 13, 1 | 3: two embedded messages, one contact skipped | none |
+| `pst/java-libpst/passworded.pst` | 271,360 B | 1.6, 1.4 ms | 2.0, 1.9 MiB | 1, 13, 1 | 1: one contact skipped | none |
+
+## Known limits
+
+The CLI's, as its README lists them, and what this run shows of each:
+
+- **Embedded messages in a `.pst` are listed without content** (outlook-pst 1.2.0 can't read
+  them; the fix is unmerged upstream), with a warning each: `testPST.pst`'s one and
+  `dist-list.pst`'s two; the generated stores have none. In a `.msg` they are read in full.
+- **ANSI stores are read but untested**: no store here is ANSI.
+- **`.ost` is refused**, tested on a header built in the test; none was measured.
+- **By-reference attachments have no file**; none of these stores has one.
+- **Class-specific fields are absent**: plaso's contact is written with the message fields alone.
+- **A code page that can't be decoded is decoded lossily**, with a warning; no store here needed it.
+- **An Exchange address is written as stored**, its SMTP address not at all: Tika's
+  `testMSG_chinese.msg` To address, above.
+- **An item outlook-pst 1.2.0 can't open is skipped**: plaso's three Suggested Contacts and
+  the one contact of each of java-libpst's stores.
+
+And of the finding itself: the times are warm (the page cache held every store); the scale store
+is synthetic, made by one generator whose gaps (no threading fields, no embedded messages, always
+normal importance) it shares with the generated fixtures; and only plaso's store is a real store
+of any size.
+
+## Rerunning
+
+From this repository's root, on a laptop (never in CI, never in the check):
+
+```sh
+MISE_ENV=fixtures mise run scale   # once: .state/scale/scale.pst and scale.json, about 35 s
+mise run findings
+```
+
+`mise run findings` (`scripts/findings.sh`) fetches plaso's store into `.state/findings/plaso/`
+at the pinned commit and refuses it unless its SHA-256 is the pinned one, builds the release
+binary, the glibc build, the scorer (`bench/findings.rs`, a Cargo example the check compiles and
+never runs), and `bench/rusage.c` (with `cc`), then scores the fixtures and times every store,
+printing the tables. A plain run keeps nothing: it writes `.state/findings/results.json`, which
+the next run overwrites, and `.state/` is ignored. To keep a run, record it:
+
+```sh
+mise run findings -- --record [name]
+```
+
+That copies the results to `docs/findings/mail-cli/runs/<name>/results.json`, `<name>` by default
+`<date>-<n>`, the first such directory that doesn't exist; a name is letters, digits, `.`, `_`,
+and `-`, not starting with `.`, and an existing run directory is never overwritten. Run `v0.1.0`'s
+scoring and timing took 116 s, after the builds. `FINDINGS_RUNS` (3) sets the runs of plaso's store and the scale store; the
+generator's `scale` command takes `--seed <n>` and `--messages <n>` after `--`.
+
+In `results.json` (schema 1): `cli` is the binary's version, commit, SHA-256, and size; `machine`
+the CPU, logical CPUs, memory, and kernel; `recovery` holds, for each table (`generated_pst`,
+`generated_msg`, `tika_pst_threading`, `tika_msg`), its files, each kind's counts, and every miss
+with its file, message, kind, outcome, and expected and written values; `rusage_floor` the
+wrapper's own; `plaso` the store's source and SHA-256; `scale` the store's size and its
+`scale.json`; and `timing` each store's runs (status, exit code, peak memory, wall, user, and
+system time), median wall, peak, stdout size, whether stdout was the same every run, its lines by
+kind, its attachment records, its warnings, and what `--attachments` wrote.
