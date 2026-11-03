@@ -24,7 +24,7 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
 const USAGE: &str = "usage: findings --bin <cli> --glibc-bin <cli> --rusage <rusage> --plaso <pst> \
---scale <dir> --state <dir> --out <results.json> --commit <rev> [--runs <n>]";
+--plaso-commit <rev> --scale <dir> --state <dir> --out <results.json> --commit <rev> [--runs <n>]";
 
 /// The arguments scripts/findings.sh passes.
 struct Args {
@@ -35,6 +35,8 @@ struct Args {
     glibc_bin: PathBuf,
     rusage: PathBuf,
     plaso: PathBuf,
+    /// The plaso commit the store was fetched at, which scripts/findings.sh pins.
+    plaso_commit: String,
     scale: PathBuf,
     state: PathBuf,
     out: PathBuf,
@@ -64,6 +66,9 @@ fn args() -> Result<Args, String> {
         glibc_bin: take("--glibc-bin")?.into(),
         rusage: take("--rusage")?.into(),
         plaso: take("--plaso")?.into(),
+        plaso_commit: take("--plaso-commit")?
+            .into_string()
+            .map_err(|_| USAGE.to_owned())?,
         scale: take("--scale")?.into(),
         state: take("--state")?.into(),
         out: take("--out")?.into(),
@@ -160,7 +165,7 @@ fn run(args: &Args) -> Result<(), String> {
         "rusage_floor": floor,
         "plaso": {
             "repository": "https://github.com/log2timeline/plaso",
-            "commit": PLASO_COMMIT,
+            "commit": args.plaso_commit,
             "path": "test_data/nromanoff@stark-research-labs.com.pst",
             "license": "Apache-2.0",
             "sha256": sha256(&args.plaso)?,
@@ -181,9 +186,6 @@ fn run(args: &Args) -> Result<(), String> {
     eprintln!("findings: wrote {}", args.out.display());
     Ok(())
 }
-
-/// The plaso commit the store is fetched at; scripts/findings.sh pins the same, with its SHA-256.
-const PLASO_COMMIT: &str = "f5bf35fcc102585eed58b930392da56a318690f6";
 
 // ---- Scoring ------------------------------------------------------------------------------
 

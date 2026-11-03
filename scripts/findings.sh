@@ -94,6 +94,7 @@ commit=$(git describe --always --dirty)
 	--glibc-bin target/release/spike-ai-pipeline-mail \
 	--rusage "$state/rusage" \
 	--plaso "$plaso" \
+	--plaso-commit "$plaso_commit" \
 	--scale "$scale" \
 	--state "$state" \
 	--out "$state/results.json" \
