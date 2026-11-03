@@ -67,9 +67,11 @@ a skipped record.
 
 Every line is one JSON object, its `line` field naming its kind. A property with no value is left
 out, never written as `null`, and so is an empty list. Strings are decoded by their code page:
-Unicode properties as UTF-16, 8-bit ones by the message's code page, else the store's. A string in
-a code page that can't be decoded is decoded lossily, with a warning. Times are ISO 8601 UTC, to
-the second. The same input always gives byte-identical output.
+Unicode properties as UTF-16, 8-bit ones by the message's code page, else the store's; a `.msg`,
+which has no store, falls back to its locale's ANSI code page, then its internet code page unless
+that is UTF-8, then its parent message's, then Windows-1252. A string in a code page that can't
+be decoded is decoded lossily, with a warning. Times are ISO 8601 UTC, to the second. The same
+input always gives byte-identical output.
 
 A `.pst` gives a `store` line, then each folder depth-first from the IPM subtree's root: each
 `folder` line before its messages' lines, and its messages before its subfolders, in its contents

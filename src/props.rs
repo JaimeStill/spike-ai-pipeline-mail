@@ -43,6 +43,7 @@ pub mod tag {
     pub const ATTACH_CONTENT_ID: u16 = 0x3712;
     pub const ATTACH_FLAGS: u16 = 0x3714;
     pub const INTERNET_CODEPAGE: u16 = 0x3FDE;
+    pub const MESSAGE_LOCALE_ID: u16 = 0x3FF1;
     pub const MESSAGE_CODEPAGE: u16 = 0x3FFD;
     pub const CODE_PAGE_ID: u16 = 0x66C3;
     pub const PST_PASSWORD: u16 = 0x67FF;

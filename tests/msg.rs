@@ -1,5 +1,5 @@
-//! Reading .msg files: the committed public messages against their goldens and what Tika's own
-//! tests assert of them, and messages built in the test for the reader's rules, its code pages,
+//! Reading .msg files: the committed public messages against their goldens and what Tika's and
+//! Apache POI's own tests assert of them, and messages built in the test for the reader's rules, its code pages,
 //! nesting, afStorage, and the skip policy.
 
 mod common;
@@ -16,7 +16,34 @@ const MESSAGES: &[&str] = &[
     "tika/testMSG_chinese.msg",
     "tika/testMSG_forwarded.msg",
     "tika/test-outlook2003.msg",
+    "poi/ASCII_UTF-8_CP1252_LCID1031_HTML.msg",
+    "poi/example_sent_regular.msg",
+    "poi/msgClassAppointment.msg",
+    "poi/outlook_30_msg.msg",
 ];
+
+/// The committed messages from one source, by its directory.
+fn from(source: &str) -> Vec<&'static str> {
+    let mut messages: Vec<&str> = MESSAGES
+        .iter()
+        .copied()
+        .filter(|path| path.starts_with(&format!("{source}/")))
+        .collect();
+    messages.sort_unstable();
+    messages
+}
+
+/// The files a truth file writes truth for, sorted.
+fn truth_files(truth: &Value) -> Vec<&str> {
+    let mut files: Vec<&str> = truth["messages"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    files.sort_unstable();
+    files
+}
 
 fn message(path: &str) -> Value {
     let out = run(&[fixture(&format!("msg/{path}"))]);
@@ -227,7 +254,7 @@ fn every_message_has_a_matching_sources_entry() {
             path.display()
         );
     }
-    for notice in ["tika/LICENSE", "tika/NOTICE"] {
+    for notice in ["tika/LICENSE", "tika/NOTICE", "poi/LICENSE", "poi/NOTICE"] {
         assert!(fixture(&format!("msg/{notice}")).is_file(), "{notice}");
     }
 }
@@ -241,16 +268,11 @@ fn every_message_has_a_matching_sources_entry() {
 fn fields_match_the_tika_truth() {
     let truth: Value =
         serde_json::from_slice(&std::fs::read(fixture("msg/tika-truth.json")).unwrap()).unwrap();
-    let mut files: Vec<&str> = truth["messages"]
-        .as_object()
-        .unwrap()
-        .keys()
-        .map(String::as_str)
-        .collect();
-    files.sort_unstable();
-    let mut messages = MESSAGES.to_vec();
-    messages.sort_unstable();
-    assert_eq!(files, messages, "every committed message has its truth");
+    assert_eq!(
+        truth_files(&truth),
+        from("tika"),
+        "every committed Tika message has its truth"
+    );
     let mut checked = 0;
     for (path, entry) in truth["messages"].as_object().unwrap() {
         let got = message(path);
@@ -268,6 +290,54 @@ fn fields_match_the_tika_truth() {
         }
     }
     assert_eq!(checked, 21);
+}
+
+/// What Apache POI's HSMF tests assert of its .msg files, as poi-truth.json writes it, is in the
+/// CLI's message lines: equal fields, the Java String.hashCode of a body, and the lengths of
+/// the recipient lists.
+#[test]
+fn fields_match_the_poi_truth() {
+    let truth: Value =
+        serde_json::from_slice(&std::fs::read(fixture("msg/poi-truth.json")).unwrap()).unwrap();
+    assert_eq!(
+        truth_files(&truth),
+        from("poi"),
+        "every committed POI message has its truth"
+    );
+    let mut checked = 0;
+    for (path, entry) in truth["messages"].as_object().unwrap() {
+        let got = message(path);
+        for (pointer, want) in entry["fields"].as_object().unwrap() {
+            assert_eq!(got.pointer(pointer), Some(want), "{path}: {pointer}");
+            checked += 1;
+        }
+        for (pointer, want) in entry["java_hashes"].as_object().into_iter().flatten() {
+            let text = got.pointer(pointer).and_then(Value::as_str);
+            assert_eq!(
+                text.map(java_hash),
+                want.as_i64().map(|hash| i32::try_from(hash).unwrap()),
+                "{path}: {pointer}"
+            );
+            checked += 1;
+        }
+        for (pointer, want) in entry["lengths"].as_object().into_iter().flatten() {
+            let len = got.pointer(pointer).and_then(Value::as_array).map(Vec::len);
+            assert_eq!(
+                len.map(|len| len as u64),
+                want.as_u64(),
+                "{path}: {pointer}"
+            );
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 31);
+}
+
+/// Java's String.hashCode: s[0]*31^(n-1) + ... + s[n-1] over UTF-16 code units, wrapping.
+fn java_hash(text: &str) -> i32 {
+    text.encode_utf16().fold(0i32, |hash, unit| {
+        hash.wrapping_mul(31).wrapping_add(i32::from(unit))
+    })
 }
 
 // Messages built in the test.

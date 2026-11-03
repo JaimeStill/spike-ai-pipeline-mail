@@ -35,15 +35,105 @@ pub fn message_code_page(message: &Bag, store: u16) -> u16 {
     code_page(message, tag::MESSAGE_CODEPAGE).unwrap_or(store)
 }
 
-/// The code page a .msg message's PT_STRING8 values are in: its PidTagMessageCodepage, else its
-/// PidTagInternetCodepage, else, for a message embedded in another, the one its parent's are
-/// in, else [`FALLBACK`]. A .msg has no store whose code page could stand in, and the internet
-/// code page is the one the message was received in, which an ANSI client keeps its strings in.
+/// The code page a .msg message's PT_STRING8 values are in: its PidTagMessageCodepage, else the
+/// ANSI code page of its PidTagMessageLocaleId, else its PidTagInternetCodepage when that is an
+/// ANSI code page, else, for a message embedded in another, the one its parent's are in, else
+/// [`FALLBACK`]. A .msg has no store whose code page could stand in. The client keeps its
+/// strings in its locale's ANSI code page, which can differ from the internet code page the
+/// message was received in, and is never UTF-8 or UTF-16: Apache POI's Test7BitCodepage
+/// messages, whose internet code page is UTF-8 or 1251 and whose strings are in German's 1252,
+/// read so, as POI reads them.
 pub fn msg_code_page(message: &Bag, parent: Option<u16>) -> u16 {
     code_page(message, tag::MESSAGE_CODEPAGE)
-        .or_else(|| code_page(message, tag::INTERNET_CODEPAGE))
+        .or_else(|| {
+            integer(message, tag::MESSAGE_LOCALE_ID)
+                .and_then(|lcid| u32::try_from(lcid).ok())
+                .and_then(locale_code_page)
+        })
+        .or_else(|| code_page(message, tag::INTERNET_CODEPAGE).filter(|cp| !unicode(*cp)))
         .or(parent)
         .unwrap_or(FALLBACK)
+}
+
+/// Whether `code_page` is a Unicode encoding, which no ANSI client keeps PT_STRING8 in.
+fn unicode(code_page: u16) -> bool {
+    matches!(code_page, UTF16LE | 1201 | 12000 | 12001 | 65000 | UTF8)
+}
+
+/// The Windows ANSI code page of a locale id, by its language, as Windows' locale table gives
+/// it (here as Apache POI's LocaleID transcribes it); none for a language Windows writes only
+/// in Unicode, or one this table doesn't know.
+fn locale_code_page(lcid: u32) -> Option<u16> {
+    let lcid = lcid & 0xFFFF;
+    let language = lcid & 0x3FF;
+    Some(match language {
+        // Chinese: Traditional in Taiwan, Hong Kong, Macao, and zh-Hant; Simplified elsewhere.
+        0x04 if matches!(lcid, 0x0404 | 0x0C04 | 0x1404 | 0x7C04) => 950,
+        0x04 => 936,
+        // Serbian and Bosnian in Cyrillic; Croatian, and both in Latin, are 1250.
+        0x1A if matches!(
+            lcid,
+            0x0C1A | 0x1C1A | 0x201A | 0x281A | 0x301A | 0x641A | 0x6C1A
+        ) =>
+        {
+            1251
+        }
+        // Azerbaijani and Uzbek in Cyrillic; in Latin, 1254.
+        0x2C if matches!(lcid, 0x082C | 0x742C) => 1251,
+        0x43 if matches!(lcid, 0x0843 | 0x7843) => 1251,
+        0x1A | 0x05 | 0x0E | 0x15 | 0x18 | 0x1B | 0x1C | 0x24 | 0x42 => 1250,
+        0x02 | 0x19 | 0x22 | 0x23 | 0x28 | 0x2F | 0x40 | 0x44 | 0x50 | 0x6D | 0x85 => 1251,
+        0x08 => 1253,
+        0x1F | 0x2C | 0x43 => 1254,
+        0x0D => 1255,
+        0x01 | 0x20 | 0x29 | 0x46 | 0x59 | 0x80 | 0x8C | 0x92 => 1256,
+        0x25..=0x27 => 1257,
+        0x2A => 1258,
+        0x1E => 874,
+        0x11 => 932,
+        0x12 => 949,
+        0x03
+        | 0x06
+        | 0x07
+        | 0x09..=0x0C
+        | 0x0F
+        | 0x10
+        | 0x13
+        | 0x14
+        | 0x16
+        | 0x17
+        | 0x1D
+        | 0x21
+        | 0x2D
+        | 0x2E
+        | 0x32
+        | 0x34..=0x36
+        | 0x38
+        | 0x3B
+        | 0x3C
+        | 0x3E
+        | 0x41
+        | 0x52
+        | 0x56
+        | 0x5D
+        | 0x5F
+        | 0x62
+        | 0x64
+        | 0x67
+        | 0x68
+        | 0x6A..=0x6C
+        | 0x6E..=0x70
+        | 0x74
+        | 0x75
+        | 0x7A
+        | 0x7C
+        | 0x7E
+        | 0x7F
+        | 0x82..=0x84
+        | 0x86..=0x88
+        | 0x91 => 1252,
+        _ => return None,
+    })
 }
 
 fn code_page(bag: &Bag, id: u16) -> Option<u16> {
@@ -372,6 +462,58 @@ mod tests {
         let mut late = vec![b' '; PRESCAN];
         late.extend_from_slice(b"<meta charset=big5>");
         assert_eq!(meta_charset(&late), None);
+    }
+
+    #[test]
+    fn a_msg_code_page_is_its_own_then_its_locales_then_its_internet_ansi_one() {
+        let props = |entries: &[(u16, i64)]| -> Bag {
+            entries
+                .iter()
+                .map(|(id, value)| (*id, Value::Integer(*value)))
+                .collect()
+        };
+        let all = props(&[
+            (tag::MESSAGE_CODEPAGE, 936),
+            (tag::MESSAGE_LOCALE_ID, 1031),
+            (tag::INTERNET_CODEPAGE, 1251),
+        ]);
+        assert_eq!(msg_code_page(&all, None), 936);
+        // POI's HTMLBodyBinary_CP1251.msg: German strings, received in 1251.
+        let german = props(&[
+            (tag::MESSAGE_LOCALE_ID, 1031),
+            (tag::INTERNET_CODEPAGE, 1251),
+        ]);
+        assert_eq!(msg_code_page(&german, None), 1252);
+        assert_eq!(
+            msg_code_page(&props(&[(tag::MESSAGE_LOCALE_ID, 1028)]), None),
+            950
+        );
+        assert_eq!(
+            msg_code_page(&props(&[(tag::MESSAGE_LOCALE_ID, 2052)]), None),
+            936
+        );
+        assert_eq!(
+            msg_code_page(&props(&[(tag::MESSAGE_LOCALE_ID, 0x0C1A)]), None),
+            1251
+        );
+        assert_eq!(
+            msg_code_page(&props(&[(tag::MESSAGE_LOCALE_ID, 0x041A)]), None),
+            1250
+        );
+        // Hindi has no ANSI code page; the internet code page stands in.
+        let hindi = props(&[
+            (tag::MESSAGE_LOCALE_ID, 0x0439),
+            (tag::INTERNET_CODEPAGE, 1252),
+        ]);
+        assert_eq!(msg_code_page(&hindi, None), 1252);
+        // A UTF-8 internet code page is never PT_STRING8's: the parent's, else the fallback.
+        let utf8 = props(&[(tag::INTERNET_CODEPAGE, 65001)]);
+        assert_eq!(msg_code_page(&utf8, Some(1251)), 1251);
+        assert_eq!(msg_code_page(&utf8, None), FALLBACK);
+        assert_eq!(
+            msg_code_page(&props(&[(tag::INTERNET_CODEPAGE, 1253)]), None),
+            1253
+        );
     }
 
     #[test]

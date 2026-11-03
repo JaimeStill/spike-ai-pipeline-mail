@@ -123,10 +123,13 @@ fn body(strings: &mut Strings, props: &Bag, code_page: u16, notes: &mut Vec<Stri
 /// The stored HTML body. PidTagHtml is PT_BINARY, decoded in the code page
 /// PidTagInternetCodepage names, else the one the HTML's own `<meta>` declares, else UTF-8 when
 /// the bytes are valid UTF-8, else the message's, which is the store's when the message names
-/// none. As PidTagBodyHtml, a string, it is decoded as any string is.
+/// none. As PidTagBodyHtml in PT_STRING8 it is the same bytes and decoded the same way, not in
+/// the message's code page: Apache POI's ASCII_UTF-8_CP1252_LCID1031_HTML.msg keeps its other
+/// strings in 1252 and its HTML in UTF-8, its internet code page. In PT_UNICODE it is UTF-16.
 fn html(strings: &mut Strings, props: &Bag, code_page: u16) -> Option<String> {
-    let Some(bytes) = binary(props, tag::HTML) else {
-        return strings.text(props, tag::HTML);
+    let bytes = match props.get(&tag::HTML)? {
+        Value::Binary(bytes) | Value::String8(bytes) => bytes,
+        _ => return strings.text(props, tag::HTML),
     };
     let code_page = integer(props, tag::INTERNET_CODEPAGE)
         .and_then(|value| u16::try_from(value).ok())

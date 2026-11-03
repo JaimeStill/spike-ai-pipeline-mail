@@ -30,7 +30,9 @@ file names are the CLI's output contract: a change to any of them is a change he
   the submit, delivery, creation, and modification times in ISO 8601 UTC, importance,
   sensitivity, the raw transport headers, and the threading fields as stored (Message-ID,
   In-Reply-To, References, conversation topic, conversation index in hex). Strings are decoded by
-  their code page, an undecodable one lossily with a warning.
+  their code page, an undecodable one lossily with a warning: a `.pst` message's 8-bit strings by
+  its code page, else the store's; a `.msg`'s by its code page, else its locale's ANSI code page,
+  else its internet code page unless that is UTF-8.
 - Bodies: the stored plain text, HTML (by its internet code page, else its `<meta>` charset), and
   RTF (decompressed); derived, the HTML recovered from RTF that encapsulates it (`\fromhtml1`) and
   a Markdown body for every message, from the HTML, else the HTML from RTF, else the plain text
