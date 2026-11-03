@@ -1,0 +1,84 @@
+# Release runs on a pushed version tag, vX.Y.Z, which the release procedure pushes only once main's
+# CI has passed; nothing here tags. Each runner builds the static musl binary natively,
+# x86_64-unknown-linux-musl and aarch64-unknown-linux-musl, and scripts/release-pack.sh refuses to
+# pack it unless its --version is the tag's version, so the tag must match the version Cargo.toml
+# records. Each archive, spike-ai-pipeline-mail-vX.Y.Z-linux-x64.tar.gz and -linux-arm64.tar.gz,
+# holds the binary and LICENSE. The last job creates the GitHub release as a draft from the tag's
+# CHANGELOG.md section, attaches both archives and their SHA256SUMS, and only then publishes it,
+# so a release appears only whole: a failed upload leaves a draft, never a published release
+# without its assets. Runs for one tag are serialized and never cancelled.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            platform: linux-x64
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            platform: linux-arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      TAG: ${{ github.ref_name }}
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: jdx/mise-action@v5.2.6
+
+      - name: Build, check the version against the tag, and pack
+        run: scripts/release-pack.sh "$TARGET" "$TAG"
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: ${{ matrix.platform }}
+          path: target/pack/spike-ai-pipeline-mail-${{ github.ref_name }}-${{ matrix.platform }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: SHA256SUMS
+        working-directory: dist
+        run: sha256sum -- *.tar.gz >SHA256SUMS
+
+      - name: Create GitHub Release
+        uses: taiki-e/create-gh-release-action@v1.12.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          changelog: CHANGELOG.md
+          draft: true
+
+      - name: Attach the archives and SHA256SUMS
+        run: gh release upload "$TAG" dist/*.tar.gz dist/SHA256SUMS
+
+      - name: Publish the release
+        run: gh release edit "$TAG" --draft=false

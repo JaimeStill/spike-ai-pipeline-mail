@@ -1,6 +1,6 @@
 [package]
 name = "spike-ai-pipeline-mail"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "The mail CLI of spike-ai-pipeline: Outlook .pst stores and .msg messages to a JSON model"
@@ -8,3 +8,28 @@ repository = "https://github.com/JaimeStill/spike-ai-pipeline-mail"
 publish = false
 
 [dependencies]
+# Pinned exactly: the CLI works around known faults of these releases, outlook-pst's in
+# src/pst.rs and codepage-strings' missing US-ASCII in src/codepage.rs.
+outlook-pst = "=1.2.0"
+codepage-strings = "=1.0.2"
+# A charset an HTML body's <meta> names, to its code page: encoding_rs knows the WHATWG labels
+# and codepage maps them to Windows code pages. codepage-strings decodes, through them both.
+codepage = "0.1.3"
+encoding_rs = "0.8.44"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+# RustCrypto's SHA-256: an attachment's file is named by the hash of its content.
+sha2 = "0.11.1"
+# Microsoft's MS-OXRTFCP decompressor: PidTagRtfCompressed to RTF. Pinned exactly: the CLI
+# works around its panics on short or oversized input (src/rtf.rs).
+compressed-rtf = "=1.0.1"
+# HTML to Markdown, for the derived Markdown body; it brings html5ever.
+htmd = "0.5.6"
+# Compound File Binary (MIT): the container of a .msg, under the CLI's own MS-OXMSG reader
+# (src/msg.rs). It brings fnv, uuid and web-time.
+cfb = "0.16.0"
+
+# The findings run (scripts/findings.sh, `mise run findings`): the check compiles it, never runs it.
+[[example]]
+name = "findings"
+path = "bench/findings.rs"

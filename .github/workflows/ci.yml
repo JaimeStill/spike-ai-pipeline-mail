@@ -1,0 +1,45 @@
+# CI runs the check a developer runs, `mise run check`, on every pull request into main and every
+# push to main, natively on x64 and arm64, so each runner tests the CLI and builds its own static
+# musl release binary. Actions are pinned by their exact release tag, which `mise run currency`
+# compares with each action's latest release. A newer run on the same ref cancels the one it
+# supersedes.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      # mise installs the pinned Rust toolchain, with both musl targets, and shellcheck.
+      - uses: jdx/mise-action@v5.2.6
+
+      # The crates Cargo.lock pins, as downloaded; target/ is built fresh on each run.
+      - uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: mise run check
+        run: mise run check
