@@ -42,19 +42,14 @@ while read -r line; do
 	[ -n "$line" ] && report "$line"
 done <<<"$packages"
 
-# GitHub Actions pinned below the action's latest release. Each is pinned by full
-# commit SHA with its release's tag in a comment, "uses: <action>@<sha> # <tag>";
-# the tag is what is compared, and a pin without one is reported too.
-uses=$(sed -nE 's/^[ -]*uses: *([^ ]+)@([^ ]+)( *# *([^ ]+))?.*$/\1 \2 \4/p' .github/workflows/*.yml | sort -u)
-while read -r action sha tag; do
+# GitHub Actions pinned below the action's latest release. Each is pinned by its exact
+# release tag, "uses: <action>@<tag>", which is compared with the latest.
+uses=$(sed -nE 's/^[ -]*uses: *([^ @]+)@([^ ]+).*$/\1 \2/p' .github/workflows/*.yml | sort -u)
+while read -r action pin; do
 	[ -n "$action" ] || continue
-	if [ -z "$tag" ]; then
-		report ".github/workflows: $action@$sha has no release tag in a comment"
-		continue
-	fi
 	repo=$(echo "$action" | cut -d/ -f1,2)
 	latest=$(gh api "repos/$repo/releases/latest" --jq .tag_name)
-	[ "$tag" = "$latest" ] || report ".github/workflows: $action $tag -> $latest"
+	[ "$pin" = "$latest" ] || report ".github/workflows: $action $pin -> $latest"
 done <<<"$uses"
 
 exit "$stale"
