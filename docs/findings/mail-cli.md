@@ -10,19 +10,19 @@ email finding.
 
 Every number here comes from run
 [`mail-cli/runs/v0.1.0/results.json`](mail-cli/runs/v0.1.0/results.json), on the laptop on
-2026-11-02 from 23:57:02 to 23:58:58 UTC, CLI 0.1.0 at commit a44854a, the static musl release
-binary the check builds for x86_64 (3,568,672 bytes, SHA-256 `57931754...e6e62f`); that file has
+2026-11-03 from 00:25:43 to 00:27:39 UTC, CLI 0.1.0 at commit 32e5aa9, the static musl release
+binary the check builds for x86_64 (3,576,888 bytes, SHA-256 `fb56ab08...fb75cb8`); that file has
 every miss and every run. A run is kept only when it is recorded ("Rerunning").
 
 ## At a glance
 
 | Question | Answer |
 |---|---|
-| Does the CLI recover what the files hold? | **Yes.** Over the generated fixtures, every field the truth expects is recovered or is one the generator doesn't store (180 expected: 147 recovered, 33 generator gaps, 0 mismatched, 0 missing). Over Tika's stores' threading truth, 47 of 47, and every absence as the truth says. Over Tika's .msg assertions, 21 of 22. |
+| Does the CLI recover what the files hold? | **Yes.** Over the generated fixtures, every field the truth expects is recovered or is one the generator doesn't store (180 expected: 147 recovered, 33 generator gaps, 0 mismatched, 0 missing). Over Tika's stores' threading truth, 47 of 47, and every absence as the truth says. Over Tika's .msg assertions, 21 of 22. Over Apache POI's .msg assertions, 31 of 31. |
 | What does it miss? | One field, by design: an Exchange recipient's SMTP address. The CLI writes the address as stored, `PidTagEmailAddress` (an X.500 DN for an `EX` recipient); Tika reports `PidTagSmtpAddress`, which the CLI doesn't write. |
-| How fast? | plaso's 59 MB store, 540 messages: **1.57 s**. The 2.1 GB scale store, 50,000 messages: **13.06 s**, **14.53 s** with `--attachments` writing 1.88 GB. Median of 3 runs each. |
-| How much memory? | Peak resident memory **42 MiB** on plaso's store and **66 to 67 MiB** on the scale store: it barely grows with the store. |
-| Anything else? | The static musl binary takes 2.0 to 2.3 times the glibc build's time on the large stores (13.06 s against 6.47 s; 1.57 s against 0.67 s), at about a tenth less memory. plaso's store has 3 contacts outlook-pst 1.2.0 can't open, skipped with a warning each. |
+| How fast? | plaso's 59 MB store, 540 messages: **1.59 s**. The 2.1 GB scale store, 50,000 messages: **13.27 s**, **14.38 s** with `--attachments` writing 1.88 GB. Median of 3 runs each. |
+| How much memory? | Peak resident memory **42 MiB** on plaso's store and **65 to 67 MiB** on the scale store: it barely grows with the store. |
+| Anything else? | The static musl binary takes 2.0 to 2.3 times the glibc build's time on the large stores (13.27 s against 6.51 s; 1.59 s against 0.71 s), at about a tenth less memory. plaso's store has 3 contacts outlook-pst 1.2.0 can't open, skipped with a warning each. |
 
 ## The machine
 
@@ -136,12 +136,49 @@ recipient's `PidTagSmtpAddress`; the CLI writes its `PidTagEmailAddress` as stor
 olefile, shows the stream holds exactly that). The CLI writes addresses as stored and has no SMTP
 address field: a known limit, in the README.
 
+### Apache POI's .msg files, against POI's assertions
+
+`tests/fixtures/msg/poi-truth.json` holds what Apache POI's own HSMF tests (apache/poi 81ab5262,
+four test files, each SHA-256 recorded there) assert of the four committed POI `.msg` files, each
+value mapped to the CLI field that holds it, written as a JSON pointer into the message line.
+Besides equal values, POI asserts a body's Java `String.hashCode`, scored here over the CLI's
+field's UTF-16 code units (the "hash" rows), and a recipient list's length (the "count" rows).
+Assertions by prefix or containment, on the RTF body, on Exchange recipients' SMTP addresses, or
+after POI's code page guessing is overridden are left out; `msgClassAppointment.msg` has no
+assertions and is read only. `tests/msg.rs` checks the same file.
+
+| Field kind | Expected | Recovered | Mismatched | Missing |
+|---|---|---|---|---|
+| Class | 1 | 1 | 0 | 0 |
+| Subject | 3 | 3 | 0 | 0 |
+| Conversation topic | 1 | 1 | 0 | 0 |
+| Sender name | 2 | 2 | 0 | 0 |
+| To name | 3 | 3 | 0 | 0 |
+| To address | 3 | 3 | 0 | 0 |
+| To count | 2 | 2 | 0 | 0 |
+| Cc name | 3 | 3 | 0 | 0 |
+| Cc address | 3 | 3 | 0 | 0 |
+| Cc count | 1 | 1 | 0 | 0 |
+| Bcc name | 2 | 2 | 0 | 0 |
+| Bcc address | 2 | 2 | 0 | 0 |
+| Bcc count | 1 | 1 | 0 | 0 |
+| Body, plain text | 1 | 1 | 0 | 0 |
+| Body, plain text (hash) | 1 | 1 | 0 | 0 |
+| Body, HTML | 1 | 1 | 0 | 0 |
+| Body, HTML (hash) | 1 | 1 | 0 | 0 |
+| **All** | **31** | **31** | **0** | **0** |
+
+`ASCII_UTF-8_CP1252_LCID1031_HTML.msg` holds its subject and plain text in its locale's code page,
+1252 (locale 1031, German), while its internet code page is UTF-8, and its HTML body in UTF-8:
+the subject and plain text match POI's assertions by the locale step of the README's fallback,
+which skips a Unicode internet code page, and the HTML by its internet code page.
+
 ## Time and peak memory
 
 Each run started through `bench/rusage.c`, office's wrapper, which forks the CLI and reports its
 own `wait4` rusage: peak resident memory (`ru_maxrss`) and wall time from fork to exit, the
 process's start and exit included. The wrapper's floor, `/bin/true` through it, was 1,528 KiB and
-0.59 ms. stdout and stderr went to files. plaso's store and the scale store ran 3 times each way,
+0.68 ms. stdout and stderr went to files. plaso's store and the scale store ran 3 times each way,
 back to back; each committed store once each way. Every store's stdout was byte-identical across
 its runs and with and without `--attachments`.
 
@@ -149,13 +186,13 @@ its runs and with and without `--attachments`.
 
 | Store | Size | `--attachments` | Median wall, of 3 | Runs | Peak memory, most of 3 | Lines out | Written |
 |---|---|---|---|---|---|---|---|
-| plaso's `nromanoff@stark-research-labs.com.pst` | 59,442,176 B | no | 1.572 s | 1.543, 1.641, 1.572 s | 41.6 MiB | 18 folders, 540 messages, 3 skipped | |
-| plaso's | | yes | 1.606 s | 1.553, 1.644, 1.606 s | 41.5 MiB | the same | 5 files, 14,533,959 B |
-| scale store | 2,141,594,624 B | no | 13.059 s | 12.937, 13.058, 13.144 s | 65.6 MiB | 17 folders, 50,000 messages | |
-| scale store | | yes | 14.534 s | 14.548, 14.534, 14.429 s | 66.9 MiB | the same | 21,202 files, 1,877,202,474 B |
+| plaso's `nromanoff@stark-research-labs.com.pst` | 59,442,176 B | no | 1.592 s | 1.592, 1.601, 1.580 s | 41.6 MiB | 18 folders, 540 messages, 3 skipped | |
+| plaso's | | yes | 1.604 s | 1.593, 1.615, 1.604 s | 41.3 MiB | the same | 5 files, 14,533,959 B |
+| scale store | 2,141,594,624 B | no | 13.267 s | 13.267, 13.277, 13.112 s | 65.1 MiB | 17 folders, 50,000 messages | |
+| scale store | | yes | 14.385 s | 14.471, 14.385, 14.349 s | 67.0 MiB | the same | 21,202 files, 1,877,202,474 B |
 
-CPU time, per run: plaso's about 1.3 s user and 0.24 s system; the scale store's about 9.8 s user
-and 3.2 s system, 10.2 s and 4.0 s with `--attachments`. User and system time add up to the wall
+CPU time, per run: plaso's about 1.3 s user and 0.23 s system; the scale store's about 9.9 s user
+and 3.2 s system, 10.1 s and 4.0 s with `--attachments`. User and system time add up to the wall
 time: one core does the work, reading the store in order.
 
 **plaso's store** is `test_data/nromanoff@stark-research-labs.com.pst` from
@@ -200,25 +237,25 @@ The release binary is static musl. The same commit built for the host's glibc ta
 
 | Store | musl (released): median wall | peak | glibc: median wall | peak |
 |---|---|---|---|---|
-| plaso's | 1.572 s | 41.6 MiB | 0.673 s | 46.5 MiB |
-| scale store | 13.059 s | 65.6 MiB | 6.473 s | 74.5 MiB |
+| plaso's | 1.592 s | 41.6 MiB | 0.707 s | 46.6 MiB |
+| scale store | 13.267 s | 65.1 MiB | 6.510 s | 74.3 MiB |
 
-musl's build takes 2.0 (scale store) to 2.3 (plaso's) times as long: on the scale store 9.8 s of
-user time against 5.7 s, and 3.2 s of system time against 0.7 s, which points at musl's allocator
+musl's build takes 2.0 (scale store) to 2.3 (plaso's) times as long: on the scale store 9.9 s of
+user time against 5.8 s, and 3.2 s of system time against 0.7 s, which points at musl's allocator
 rather than the reading; the run doesn't profile it. It uses 11 to 12% less memory.
 
 ### The committed stores
 
-One run each way; each is under 7 ms and 3 MiB, mostly the process's own start:
+One run each way; each is under 8 ms and 3 MiB, mostly the process's own start:
 
 | Store | Size | Wall, without and with `--attachments` | Peak memory | Messages, folders, skipped | Warnings | Written with `--attachments` |
 |---|---|---|---|---|---|---|
-| `generated/pst/mailbox.pst` | 271,360 B | 2.6, 3.1 ms | 2.4, 2.4 MiB | 8, 9, 0 | 0 | 3 files, 137 B |
-| `pst/tika/testPST.pst` | 2,302,976 B | 7.5, 7.2 ms | 2.8, 2.6 MiB | 7, 2, 0 | 1: an embedded message, listed without content | none |
-| `pst/tika/testPST_variousBodyTypes.pst` | 271,360 B | 5.0, 4.9 ms | 2.2, 2.6 MiB | 4, 4, 0 | 0 | none |
-| `pst/libyal/outlook.pst` | 271,360 B | 5.3, 5.2 ms | 2.6, 2.8 MiB | 2, 17, 0 | 0 | 11 files, 21,871 B |
-| `pst/java-libpst/dist-list.pst` | 271,360 B | 1.8, 2.0 ms | 2.2, 2.4 MiB | 2, 13, 1 | 3: two embedded messages, one contact skipped | none |
-| `pst/java-libpst/passworded.pst` | 271,360 B | 1.6, 1.4 ms | 2.0, 1.9 MiB | 1, 13, 1 | 1: one contact skipped | none |
+| `generated/pst/mailbox.pst` | 271,360 B | 2.6, 2.8 ms | 2.4, 2.4 MiB | 8, 9, 0 | 0 | 3 files, 137 B |
+| `pst/tika/testPST.pst` | 2,302,976 B | 7.1, 6.6 ms | 2.4, 2.6 MiB | 7, 2, 0 | 1: an embedded message, listed without content | none |
+| `pst/tika/testPST_variousBodyTypes.pst` | 271,360 B | 5.3, 5.4 ms | 2.6, 2.6 MiB | 4, 4, 0 | 0 | none |
+| `pst/libyal/outlook.pst` | 271,360 B | 5.5, 6.0 ms | 2.6, 2.8 MiB | 2, 17, 0 | 0 | 11 files, 21,871 B |
+| `pst/java-libpst/dist-list.pst` | 271,360 B | 2.2, 2.3 ms | 2.0, 2.4 MiB | 2, 13, 1 | 3: two embedded messages, one contact skipped | none |
+| `pst/java-libpst/passworded.pst` | 271,360 B | 1.7, 1.7 ms | 2.0, 2.0 MiB | 1, 13, 1 | 1: one contact skipped | none |
 
 ## Known limits
 
@@ -236,6 +273,11 @@ The CLI's, as its README lists them, and what this run shows of each:
   `testMSG_chinese.msg` To address, above.
 - **An item outlook-pst 1.2.0 can't open is skipped**: plaso's three Suggested Contacts and
   the one contact of each of java-libpst's stores.
+- **A folder's table that can't be read is told from an empty one only by the folder's count**
+  (outlook-pst 1.2.0 gives an unreadable table as no table, without its error), so the skipped
+  line's reason can't name the fault, and a folder claiming no items or subfolders while it has
+  some loses them silently. No store here has an unreadable folder table: every skipped line in
+  this run is a message. It is tested on a copy of libyal's store with one byte changed.
 
 And of the finding itself: the times are warm (the page cache held every store); the scale store
 is synthetic, made by one generator whose gaps (no threading fields, no embedded messages, always
@@ -270,7 +312,7 @@ generator's `scale` command takes `--seed <n>` and `--messages <n>` after `--`.
 
 In `results.json` (schema 1): `cli` is the binary's version, commit, SHA-256, and size; `machine`
 the CPU, logical CPUs, memory, and kernel; `recovery` holds, for each table (`generated_pst`,
-`generated_msg`, `tika_pst_threading`, `tika_msg`), its files, each kind's counts, and every miss
+`generated_msg`, `tika_pst_threading`, `tika_msg`, `poi_msg`), its files, each kind's counts, and every miss
 with its file, message, kind, outcome, and expected and written values; `rusage_floor` the
 wrapper's own; `plaso` the store's source and SHA-256; `scale` the store's size and its
 `scale.json`; and `timing` each store's runs (status, exit code, peak memory, wall, user, and
