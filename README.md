@@ -6,11 +6,11 @@ command-line utility that reads Outlook `.pst` stores, through Microsoft's
 MS-OXMSG reader over [cfb](https://crates.io/crates/cfb), and `.eml` messages and mbox files,
 through Stalwart's [mail-parser](https://crates.io/crates/mail-parser), into one JSON model: a
 store's folder tree, each message in the folder it is stored in, with its headers, bodies, and
-threading fields as stored, and its attachments, written out as files on request. It builds no threads; processing
-does.
+threading fields as stored, and its attachments, written out as files on request. It builds no
+threads; processing does.
 
 It is published as one static musl binary each for linux-x64 and linux-arm64, which
-spike-ai-pipeline-processing is planned to run like any other system tool. It calls no model.
+spike-ai-pipeline-processing's `email` package runs like any other system tool. It calls no model.
 
 It is released by tag, `vX.Y.Z`, with a [CHANGELOG](CHANGELOG.md). Its finding for the spike's
 evidence 16, the fields it recovers per kind and its time and peak memory per store, is
@@ -82,8 +82,8 @@ page: Unicode properties as UTF-16, 8-bit ones by the message's code page, else 
 page, then its internet code page unless that is a Unicode encoding, then its parent message's,
 then Windows-1252. An `.eml` or mbox message's parts are decoded from their transfer encoding and
 charset, its headers' encoded words likewise, and its raw header values as UTF-8. A string in a
-code page or charset that can't be decoded is decoded lossily, with a warning. Times are ISO 8601 UTC, to the second. The same input always gives byte-identical
-output.
+code page or charset that can't be decoded is decoded lossily, with a warning. Times are ISO 8601
+UTC, to the second. The same input always gives byte-identical output.
 
 A `.pst` gives a `store` line, then each folder depth-first from the IPM subtree's root: each
 `folder` line before its messages' lines, and its messages before its subfolders, in its contents
@@ -174,7 +174,8 @@ file. An embedded message is no file: in a `.msg`, an `.eml`, or an mbox it is n
 ### .eml and mbox messages
 
 An `.eml` or mbox message fills the message fields from its headers and MIME parts, through
-mail-parser 1.0.1. Where a header appears more than once, the last is read.
+mail-parser 1.0.1. Where a header appears more than once, the last is read, except Received,
+whose first gives `delivery_time`.
 
 | Field | From |
 | --- | --- |
@@ -193,8 +194,8 @@ mail-parser 1.0.1. Where a header appears more than once, the last is read.
 | `sensitivity` | Sensitivity's `Personal`, `Private`, and `Company-Confidential`, as `"personal"`, `"private"`, and `"confidential"`. |
 
 Every address has address type `SMTP`. A date, Thread-Index, Importance, X-Priority, or
-Sensitivity value that doesn't read or map is left out, with a warning; an unknown Importance
-falls back to X-Priority. A raw header value that isn't valid UTF-8 is decoded lossily, with a
+Sensitivity value that doesn't read or map is left out, with a warning; a Sensitivity of `Normal`
+is one of these, and an unknown Importance falls back to X-Priority. A raw header value that isn't valid UTF-8 is decoded lossily, with a
 warning.
 
 The bodies are mail-parser's body lists (RFC 8621's textBody and htmlBody): `text` is the text/plain
@@ -204,9 +205,9 @@ line break, and `derived.markdown` is made from them as for a `.pst` or a `.msg`
 order: its attachments, and the images, audio, and video its bodies show. Each is `by_value`, its
 content decoded from its transfer encoding, with a warning when that is decoded lossily; its
 filename, MIME type, and content-id are its headers', and `inline` is true when its
-Content-Disposition is `inline`; a message/rfc822 or message/global part is `embedded_message`, nested under
-`message` up to 16 deep like a `.msg`'s, and one that can't be parsed is listed without it, with a
-warning.
+Content-Disposition is `inline`. A message/rfc822 or message/global part is `embedded_message`,
+nested under `message` up to 16 deep like a `.msg`'s; one that can't be parsed is listed without
+it, with a warning.
 
 ### skipped
 
@@ -257,7 +258,8 @@ it on linux-x64 and linux-arm64. The tests run the built binary over the committ
 `mise run mboxrd` writes the MIME group's mboxrd, `tests/fixtures/mime/nine.mboxrd`, from its nine
 `.eml`; the check rebuilds it and compares it byte for byte.
 `MISE_ENV=fixtures mise run fixtures` regenerates the generated fixtures from their `.eml`
-sources, and `MISE_ENV=fixtures mise run scale` builds the scale store, which is never committed.
+sources, and `MISE_ENV=fixtures mise run scale` builds the scale store and the same messages as an mboxrd,
+neither committed.
 `mise run findings` runs the finding ([`docs/findings/mail-cli.md`](docs/findings/mail-cli.md),
 "Rerunning").
 

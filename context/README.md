@@ -1,7 +1,7 @@
 # spike-ai-pipeline-mail
 
-The mail CLI of spike-ai-pipeline, released by tag, for spike-ai-pipeline-processing to run as a
-system tool (planned, in processing's `email` task). This context records only working knowledge
+The mail CLI of spike-ai-pipeline, released by tag, which spike-ai-pipeline-processing's `email`
+package runs as a system tool. This context records only working knowledge
 the code and the README do not express; the spike's question and evidence live in the root
 repository's `context/README.md`.
 
@@ -13,10 +13,10 @@ repository's `context/README.md`.
   reader over cfb, embedded messages nested in full.
 - **MIME**: `.eml` messages and mbox files (read as mboxrd) to the same model, through
   mail-parser: headers mapped to the MAPI fields, text and HTML bodies, attachments by part, and
-  message/rfc822 parts nested as embedded messages.
+  message/rfc822 and message/global parts nested as embedded messages.
 - **fields**: headers and threading fields (Message-ID, In-Reply-To, References, conversation
-  topic and index) as stored; no thread grouping. Strings are decoded by their code page through
-  codepage-strings.
+  topic and index) as stored; no thread grouping. A `.pst`'s and a `.msg`'s strings are decoded by
+  their code page through codepage-strings, a MIME message's by its charsets through mail-parser.
 - **bodies**: plain text, HTML, and RTF (decompressed) as stored; derived beside them, the HTML
   recovered from RTF that encapsulates it (MS-OXRTFEX) and a Markdown body made by htmd.
 - **attachments**: written out as files named by SHA-256; embedded messages nested in a `.msg`,

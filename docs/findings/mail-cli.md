@@ -4,8 +4,8 @@ This page records the CLI's part of the spike's evidence 16 (the root's `context
 item 16): the fields it recovers, per field kind, against the hand truth of the generated and
 public fixtures, and its time and peak memory on every committed store, on plaso's 59 MB store,
 and on a generated 2.1 GB store; and, for .eml and mbox, the fields it recovers against the MIME
-fixtures' truth and its time and peak memory on the same generated messages as a 2.7 GB mboxrd. It measures the CLI alone, with no baseline against other
-readers. Thread grouping and attachment routing, the rest of evidence 16, belong to processing's
+fixtures' truth and its time and peak memory on the same generated messages as a 2.7 GB mboxrd.
+It measures the CLI alone, with no baseline against other readers. Thread grouping and attachment routing, the rest of evidence 16, belong to processing's
 planned email finding.
 
 Every number here comes from run
@@ -374,7 +374,8 @@ peak memory, though it is 26% larger: about 4.0 s user and 2.7 s system per run 
 with `--attachments`), against the .pst's 9.7 to 10.1 s and 3.8 to 4.3 s. Peak memory follows the
 message being read: 41 MiB for 2.7 GB, close to plaso's 59 MB store's 41.6 MiB. No record was
 skipped and no warning written; every stdout was byte-identical across its runs and with and
-without `--attachments`, and `--attachments` wrote as many files of as many bytes from both, 21,202 of 1,877,202,474 B. The .pst's
+without `--attachments`, and `--attachments` wrote the same 21,202 files of 1,877,202,474 B from
+both. The .pst's
 stdout had the SHA-256 it had at v0.1.0 (`441b5c31...c04b6b`). The .pst's medians are 12% above
 v0.1.0's on the same store (14.82 s against 13.27 s), the spread between two days' runs on this
 laptop, so the mboxrd is compared only with the .pst of its own run.
@@ -386,12 +387,12 @@ The glibc build, timed beside it as above, without `--attachments`:
 | scale.mboxrd | 6.858 s | 41.0 MiB | 4.094 s | 61.3 MiB |
 | scale.pst, the same run | 14.818 s | 65.9 MiB | 6.877 s | 74.1 MiB |
 
-musl takes 1.7 times glibc's time on the mboxrd, less than on the .pst (2.2 here), and a third
-less memory.
+musl takes 1.7 times glibc's time on the mboxrd, less than the 2.2 times it takes on the .pst
+here, and a third less memory on the mboxrd (a ninth less on the .pst).
 
 ## Known limits
 
-The CLI's, as its README lists them, and what this run shows of each:
+The CLI's `.pst` and `.msg` limits, as its README lists them, and what run v0.1.0 shows of each:
 
 - **Embedded messages in a `.pst` are listed without content** (outlook-pst 1.2.0 can't read
   them; the fix is unmerged upstream), with a warning each: `testPST.pst`'s one and
@@ -439,16 +440,16 @@ mise run findings -- --record [name]
 That copies the results to `docs/findings/mail-cli/runs/<name>/results.json`, `<name>` by default
 `<date>-<n>`, the first such directory that doesn't exist; a name is letters, digits, `.`, `_`,
 and `-`, not starting with `.`, and an existing run directory is never overwritten. Run
-`v0.1.0`'s scoring and timing took 116 s, after the builds; run `v0.2.0`'s, with the mboxrd, 188 s. `FINDINGS_RUNS` (3) sets the runs of
-plaso's store and the scale store; the generator's `scale` command takes `--seed <n>` and
+`v0.1.0`'s scoring and timing took 116 s, after the builds; run `v0.2.0`'s, with the mboxrd,
+188 s. `FINDINGS_RUNS` (3) sets the runs of plaso's store and the scale store; the generator's `scale` command takes `--seed <n>` and
 `--messages <n>` after `--`.
 
 In `results.json` (schema 1): `cli` is the binary's version, commit, SHA-256, and size; `machine`
 the CPU, logical CPUs, memory, and kernel; `recovery` holds, for each table (`generated_pst`,
 `generated_msg`, `tika_pst_threading`, `tika_msg`, `poi_msg`, and from v0.2.0 `generated_eml`,
-`mime_eml`, `nine_mboxrd`, `rlug_mbox`), its files, each kind's counts, and
-every miss with its file, message, kind, outcome, and expected and written values; `rusage_floor` the
-wrapper's own; `plaso` the store's source and SHA-256; `scale` the store's size, from v0.2.0 the mboxrd's size and
-SHA-256, and its `scale.json`; and `timing` each store's runs (status, exit code, peak memory, wall, user, and
-system time), median wall, peak, stdout size, whether stdout was the same every run, its lines by
+`mime_eml`, `nine_mboxrd`, `rlug_mbox`), its files, each kind's counts, and every miss with its
+file, message, kind, outcome, and expected and written values; `rusage_floor` the wrapper's own;
+`plaso` the store's source and SHA-256; `scale` the store's size, from v0.2.0 the mboxrd's size
+and SHA-256, and its `scale.json`; and `timing` each store's runs (status, exit code, peak memory,
+wall, user, and system time), median wall, peak, stdout size, whether stdout was the same every run, its lines by
 kind, its attachment records, its warnings, and what `--attachments` wrote.

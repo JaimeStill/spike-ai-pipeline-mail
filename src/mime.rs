@@ -19,8 +19,8 @@
 //! the text parts of the one, and the HTML body the HTML parts of the other, each decoded from
 //! its transfer encoding and charset and joined in order; the Markdown body is derived as for a
 //! .pst or a .msg. The attachments are the message's parts that aren't body text, in order: its
-//! attachments, and the images, audio and video the bodies show. A message/rfc822 part is an
-//! embedded message, nested under its record to [`DEPTH_MAX`] messages.
+//! attachments, and the images, audio and video the bodies show. A message/rfc822 or
+//! message/global part is an embedded message, nested under its record to [`DEPTH_MAX`] messages.
 //!
 //! mail-parser decodes US-ASCII and ISO-8859-1 as windows-1252, as WHATWG labels them, and the
 //! five bytes windows-1252 leaves undefined as U+FFFD. Whatever it reports as a decoding problem

@@ -37,8 +37,8 @@ v0.1.0.
   body lists, decoded and joined in order, with the Markdown body derived from them; the
   attachments are the parts that aren't body text, `by_value`, `inline` by their
   Content-Disposition, and message/rfc822 and message/global parts are `embedded_message`,
-  nested under their record up to 16 deep. Text or content mail-parser decodes with a problem is decoded lossily, with a
-  warning.
+  nested under their record up to 16 deep. Text or content in which mail-parser reports a
+  decoding problem is decoded lossily, with a warning.
 - Refusals, exit 3: an input of none of the four formats, `neither a .pst, a .msg, an .eml nor an
   mbox` (it was `neither a .pst nor a .msg`); an `.eml` of 4 GiB or more; and an `.eml`
   mail-parser can't parse.
