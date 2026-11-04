@@ -1,4 +1,5 @@
-//! spike-ai-pipeline-mail: Outlook .pst stores and .msg messages to a JSON model.
+//! spike-ai-pipeline-mail: Outlook .pst stores, .msg messages, .eml messages and mbox files to a
+//! JSON model.
 //!
 //! It reads one input, sniffed by content, and writes JSON Lines of schema "1" to stdout:
 //! nothing else goes there. Warnings and errors are single lines on stderr. Exit codes:
@@ -7,11 +8,14 @@
 //! 3 an input refused; 4 a fault of the CLI's own.
 
 mod codepage;
+mod eml;
 mod files;
 mod guard;
 mod jsonl;
 mod mapping;
 mod markdown;
+mod mbox;
+mod mime;
 mod model;
 mod msg;
 mod props;
@@ -22,7 +26,7 @@ mod sniff;
 use std::any::Any;
 use std::ffi::OsString;
 use std::fs::File;
-use std::io::{self, BufWriter, Read};
+use std::io::{self, BufReader, BufWriter, Read};
 use std::panic::{self, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -118,10 +122,17 @@ fn run(args: &[OsString]) -> Result<(), Fault> {
             )));
         }
         Format::CompoundFile => msg::read(path, &mut out, &mut files)?,
-        Format::Unknown => {
-            return Err(Fault::Refused(format!(
-                "{input}: neither a .pst nor a .msg"
-            )));
+        Format::Mbox => mbox::read(path, &mut out, &mut files)?,
+        Format::Other => {
+            let shaped = File::open(path)
+                .and_then(|file| sniff::header_shape(BufReader::new(file)))
+                .map_err(|err| Fault::Refused(format!("{input}: {err}")))?;
+            if !shaped {
+                return Err(Fault::Refused(format!(
+                    "{input}: neither a .pst, a .msg, an .eml nor an mbox"
+                )));
+            }
+            eml::read(path, &mut out, &mut files)?;
         }
     }
     out.flush().map_err(Fault::Output)

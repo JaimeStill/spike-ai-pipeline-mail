@@ -12,7 +12,7 @@ pub const SCHEMA: &str = "1";
 pub struct Store {
     pub line: &'static str,
     pub schema: &'static str,
-    /// "pst" or "msg".
+    /// "pst", "msg", "eml" or "mbox".
     pub format: &'static str,
     /// For a .pst, "unicode" or "ansi".
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -48,7 +48,7 @@ pub struct Message {
     /// "message" on a message line. A nested message is no line: its is empty and left out.
     #[serde(skip_serializing_if = "str::is_empty")]
     pub line: &'static str,
-    /// In a .pst, the message's node id.
+    /// In a .pst, the message's node id; in an mbox, its 1-based ordinal in the file.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u32>,
     /// In a .pst, the node id of the folder the message is in.
@@ -209,7 +209,8 @@ pub struct Skipped {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<u32>,
     /// In a .pst, the record's own node id; an attachment's is its node id within its
-    /// message. In a .msg, an attachment's number, the one its storage's name ends in.
+    /// message. In a .msg, an attachment's number, the one its storage's name ends in. In an
+    /// mbox, a message's 1-based ordinal in the file.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u32>,
     pub reason: String,
