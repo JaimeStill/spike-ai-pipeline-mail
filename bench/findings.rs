@@ -1,7 +1,8 @@
 //! The findings run of evidence 16 for the CLI alone: the fields it recovers, per field kind,
 //! against the committed fixtures' truth, and its time and peak memory on plaso's store and the
-//! scale store. scripts/findings.sh builds it and runs it (`mise run findings`); the check only
-//! compiles it. It prints the tables and writes one results file, where the script says.
+//! scale store, as a .pst and as an mboxrd of the same messages. scripts/findings.sh builds it
+//! and runs it (`mise run findings`); the check only compiles it. It prints the tables and
+//! writes one results file, where the script says.
 //!
 //! The truth it scores against:
 //! - the generated fixtures': tests/fixtures/generated/truth.json, the hand truth of the .eml
@@ -9,7 +10,12 @@
 //! - Tika's two stores' threading fields: tests/fixtures/pst/tika-threading.json;
 //! - Tika's .msg files': tests/fixtures/msg/tika-truth.json, the values Tika's own tests assert;
 //! - Apache POI's .msg files': tests/fixtures/msg/poi-truth.json, the values POI's own HSMF tests
-//!   assert.
+//!   assert;
+//! - the eight .eml sources themselves, against tests/fixtures/generated/truth.json, and the MIME
+//!   group's 09-threading.eml against tests/fixtures/mime/truth.json;
+//! - the MIME group's mboxes against their sources: each message of nine.mboxrd against the CLI's
+//!   read of its source .eml, and each of mime4j's mbox.rlug against its expected split, read as an
+//!   .eml, field by field, as tests/mbox.rs compares them.
 //!
 //! A generated file doesn't hold all of its source: PST Builder and MsgKit each leave fields out
 //! or store them otherwise. tests/generated.rs states what each holds and asserts the files hold
@@ -110,6 +116,10 @@ fn run(args: &Args) -> Result<(), String> {
         "tika_pst_threading": tika_threading(&args.bin, &fixtures)?.into_json(),
         "tika_msg": tika_msg(&args.bin, &fixtures)?.into_json(),
         "poi_msg": poi_msg(&args.bin, &fixtures)?.into_json(),
+        "generated_eml": eml_group(&args.bin, &fixtures.join("generated"))?.into_json(),
+        "mime_eml": eml_group(&args.bin, &fixtures.join("mime"))?.into_json(),
+        "nine_mboxrd": nine_mboxrd(&args.bin, &fixtures)?.into_json(),
+        "rlug_mbox": rlug_mbox(&args.bin, &fixtures.join("mime"), &args.state)?.into_json(),
     });
 
     let scale_record = read_json(&args.scale.join("scale.json"))?;
@@ -136,6 +146,11 @@ fn run(args: &Args) -> Result<(), String> {
         args.scale.join("scale.pst"),
         args.runs,
     ));
+    stores.push((
+        "scale.mboxrd".to_owned(),
+        args.scale.join("scale.mboxrd"),
+        args.runs,
+    ));
     for (name, path, runs) in &stores {
         for attachments in [false, true] {
             eprintln!(
@@ -145,7 +160,8 @@ fn run(args: &Args) -> Result<(), String> {
             timing.push(time_store(args, &args.bin, name, path, *runs, attachments)?);
         }
     }
-    for (name, path, runs) in &stores[stores.len() - 2..] {
+    // plaso's store and the scale store, as a .pst and as an mboxrd.
+    for (name, path, runs) in &stores[stores.len() - 3..] {
         let name = format!("{name} (glibc build, not released)");
         eprintln!("findings: timing {name}");
         timing.push(time_store(
@@ -176,6 +192,8 @@ fn run(args: &Args) -> Result<(), String> {
         },
         "scale": {
             "size": size(&args.scale.join("scale.pst"))?,
+            "mboxrd_size": size(&args.scale.join("scale.mboxrd"))?,
+            "mboxrd_sha256": sha256(&args.scale.join("scale.mboxrd"))?,
             "record": scale_record,
         },
         "timing": timing,
@@ -378,6 +396,8 @@ enum Generator {
     PstBuilder,
     /// MsgKit 3.0.6.
     MsgKit,
+    /// None: the .eml source itself, which holds all of its truth, so nothing is a gap.
+    Source,
 }
 
 /// One generated message's line against its source's truth.
@@ -390,6 +410,7 @@ fn score_generated(
     generator: Generator,
 ) {
     let pst = generator == Generator::PstBuilder;
+    let msgkit = generator == Generator::MsgKit;
     // A field the truth has, scored; one it hasn't, skipped.
     let field = |score: &mut Score, kind: &str, want: Option<&Value>, got: Option<&Value>, gap| {
         if let Some(want) = want {
@@ -447,7 +468,7 @@ fn score_generated(
     );
     if let Some(received) = truth.get("received") {
         // MsgKit takes the Date header for the delivery time.
-        let gap = !pst && got.get("delivery_time") == Some(date);
+        let gap = msgkit && got.get("delivery_time") == Some(date);
         field(
             score,
             "delivery time",
@@ -477,6 +498,8 @@ fn score_generated(
         let gap = if pst {
             // PST Builder writes no threading fields.
             read.is_none()
+        } else if !msgkit {
+            false
         } else {
             // MsgKit stores IDs without their angle brackets, and References as its last ID.
             let ids = want.as_str().unwrap_or_default();
@@ -488,6 +511,10 @@ fn score_generated(
             read == Some(&stored)
         };
         field(score, kind, Some(want), read, gap);
+    }
+    // The threading and priority fields only the MIME group's truth holds.
+    for key in ["conversation_topic", "conversation_index", "sensitivity"] {
+        field(score, &kind_name(key), truth.get(key), got.get(key), false);
     }
     for (kind, key) in [("body (plain text)", "text"), ("body (HTML)", "html")] {
         let read = text(got["body"].get(key));
@@ -529,7 +556,7 @@ fn score_generated(
         };
         part("attachment filename", "filename", false);
         // MsgKit types an attachment by its own table of extensions, which has no .csv.
-        let msgkit_type = !pst
+        let msgkit_type = msgkit
             && want["filename"]
                 .as_str()
                 .is_some_and(|name| name.ends_with(".csv"))
@@ -551,9 +578,10 @@ fn score_generated(
         let eml = format!("{}.eml", want["subject"].as_str().unwrap_or_default());
         let gap = nested.is_none()
             && (pst
-                || read
-                    .iter()
-                    .any(|a| a.get("filename") == Some(&json!(eml)) && a["method"] == "by_value"));
+                || msgkit
+                    && read.iter().any(|a| {
+                        a.get("filename") == Some(&json!(eml)) && a["method"] == "by_value"
+                    }));
         score.score(
             file,
             source,
@@ -656,6 +684,172 @@ fn generated_msg(bin: &Path, dir: &Path) -> Result<Score, String> {
         );
     }
     Ok(score)
+}
+
+/// Each .eml source of a group, read as it is, against the group's truth: the generated group's
+/// eight, or the MIME group's own.
+fn eml_group(bin: &Path, dir: &Path) -> Result<Score, String> {
+    let truth = read_json(&dir.join("truth.json"))?;
+    let group = dir
+        .file_name()
+        .map_or(String::new(), |n| n.to_string_lossy().into_owned());
+    let mut score = Score::new();
+    for (source, want) in truth["messages"].as_object().into_iter().flatten() {
+        let file = format!("eml/{source}");
+        let lines = lines(bin, &dir.join(&file))?;
+        score.files.push(format!("{group}/{file}"));
+        let got = lines.iter().find(|l| l["line"] == "message");
+        let Some(got) = got else {
+            score.score(&file, source, "message", &json!(source), None, false);
+            continue;
+        };
+        score.score(
+            &file,
+            source,
+            "message",
+            &json!(source),
+            Some(&json!(source)),
+            false,
+        );
+        score_generated(&mut score, &file, source, got, want, Generator::Source);
+    }
+    Ok(score)
+}
+
+/// The MIME group's mboxrd against its sources, in tests/mbox.rs's order: message n is the CLI's
+/// read of source n.
+fn nine_mboxrd(bin: &Path, fixtures: &Path) -> Result<Score, String> {
+    let mut sources: Vec<(String, PathBuf)> = Vec::new();
+    for dir in ["generated/eml", "mime/eml"] {
+        for entry in fs::read_dir(fixtures.join(dir)).map_err(|e| format!("{dir}: {e}"))? {
+            let path = entry.map_err(|e| e.to_string())?.path();
+            if path.extension().is_some_and(|e| e == "eml") {
+                let name = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned();
+                sources.push((name, path));
+            }
+        }
+    }
+    // scripts/mboxrd.sh's order: by file name, which starts with the ordinal.
+    sources.sort();
+    let mut expected = Vec::new();
+    for (name, path) in &sources {
+        expected.push((name.clone(), source_message(bin, path)?));
+    }
+    let mut score = Score::new();
+    let file = "mime/nine.mboxrd";
+    score.files.push(file.to_owned());
+    let got = mbox_messages(bin, &fixtures.join(file))?;
+    score_mbox(&mut score, file, &got, &expected);
+    Ok(score)
+}
+
+/// mime4j's mbox.rlug against its five expected splits, each read as an .eml without its final
+/// line ending, the blank line the mboxrd reader gives the separator (tests/mbox.rs says why).
+fn rlug_mbox(bin: &Path, dir: &Path, state: &Path) -> Result<Score, String> {
+    let splits = state.join("rlug");
+    fs::create_dir_all(&splits).map_err(|e| format!("{}: {e}", splits.display()))?;
+    let mut expected = Vec::new();
+    for n in 0..5 {
+        let name = format!("mbox.rlug-{n}");
+        let bytes = fs::read(dir.join("rlug").join(&name)).map_err(|e| format!("{name}: {e}"))?;
+        let message = bytes
+            .strip_suffix(b"\n")
+            .filter(|m| m.ends_with(b"\n"))
+            .ok_or_else(|| format!("{name} doesn't end with a blank line"))?;
+        let path = splits.join(format!("{name}.eml"));
+        fs::write(&path, message).map_err(|e| format!("{}: {e}", path.display()))?;
+        expected.push((name, source_message(bin, &path)?));
+    }
+    let mut score = Score::new();
+    let file = "mime/rlug/mbox.rlug";
+    score.files.push(file.to_owned());
+    let got = mbox_messages(bin, &dir.join("rlug/mbox.rlug"))?;
+    score_mbox(&mut score, file, &got, &expected);
+    Ok(score)
+}
+
+/// The one message line of an .eml, which must have no other line but its store line.
+fn source_message(bin: &Path, path: &Path) -> Result<Value, String> {
+    let lines = lines(bin, path)?;
+    match lines.as_slice() {
+        [store, message] if store["line"] == "store" && message["line"] == "message" => {
+            Ok(message.clone())
+        }
+        _ => Err(format!("{}: not one message line", path.display())),
+    }
+}
+
+/// An mbox's lines but its store line.
+fn mbox_messages(bin: &Path, path: &Path) -> Result<Vec<Value>, String> {
+    let lines = lines(bin, path)?;
+    if lines.first().map(|l| &l["format"]) != Some(&json!("mbox")) {
+        return Err(format!("{}: no mbox store line", path.display()));
+    }
+    Ok(lines[1..].to_vec())
+}
+
+/// An mbox's lines against its sources' message lines, in order: line n must be a message with
+/// id n, and each of its fields equal to the source's. A field kind is a top-level field, or a
+/// body's part; a field the mbox's message has and its source hasn't is unexpected.
+fn score_mbox(score: &mut Score, file: &str, got: &[Value], expected: &[(String, Value)]) {
+    for (i, (source, want)) in expected.iter().enumerate() {
+        let read = got.get(i).filter(|l| l["line"] == "message");
+        score.score(
+            file,
+            source,
+            "message",
+            &json!(source),
+            read.map(|_| json!(source)).as_ref(),
+            false,
+        );
+        let Some(read) = read else { continue };
+        score.score(
+            file,
+            source,
+            "id (ordinal)",
+            &json!(i + 1),
+            read.get("id"),
+            false,
+        );
+        let fields = |message: &Value| -> BTreeMap<String, Value> {
+            let mut fields = BTreeMap::new();
+            for (key, value) in message.as_object().into_iter().flatten() {
+                match key.as_str() {
+                    "line" | "id" => {}
+                    "body" => {
+                        for (part, value) in value.as_object().into_iter().flatten() {
+                            fields.insert(format!("body {}", kind_name(part)), value.clone());
+                        }
+                    }
+                    _ => {
+                        fields.insert(kind_name(key), value.clone());
+                    }
+                }
+            }
+            fields
+        };
+        let (want, read) = (fields(want), fields(read));
+        for (kind, value) in &want {
+            score.score(file, source, kind, value, read.get(kind), false);
+        }
+        for (kind, value) in &read {
+            if !want.contains_key(kind) {
+                score.absent(file, source, kind, Some(value));
+            }
+        }
+    }
+    if got.len() > expected.len() {
+        score.absent(
+            file,
+            "after the last source",
+            "message",
+            got.get(expected.len()),
+        );
+    }
 }
 
 /// Tika's stores' threading fields, message by message in store order; a null is a field the
@@ -1013,6 +1207,10 @@ fn print_summary(results: &Value) {
         ),
         ("tika_msg", "Tika's .msg against Tika's assertions"),
         ("poi_msg", "Apache POI's .msg against POI's assertions"),
+        ("generated_eml", "The eight .eml against truth.json"),
+        ("mime_eml", "09-threading.eml against mime/truth.json"),
+        ("nine_mboxrd", "nine.mboxrd against its nine .eml"),
+        ("rlug_mbox", "mime4j's mbox.rlug against its splits"),
     ] {
         let score = &results["recovery"][group];
         println!("\n### {title}\n");

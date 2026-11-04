@@ -12,7 +12,7 @@ pub const SCHEMA: &str = "1";
 pub struct Store {
     pub line: &'static str,
     pub schema: &'static str,
-    /// "pst" or "msg".
+    /// "pst", "msg", "eml" or "mbox".
     pub format: &'static str,
     /// For a .pst, "unicode" or "ansi".
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -48,7 +48,7 @@ pub struct Message {
     /// "message" on a message line. A nested message is no line: its is empty and left out.
     #[serde(skip_serializing_if = "str::is_empty")]
     pub line: &'static str,
-    /// In a .pst, the message's node id.
+    /// In a .pst, the message's node id; in an mbox, its 1-based ordinal in the file.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u32>,
     /// In a .pst, the node id of the folder the message is in.
@@ -124,10 +124,11 @@ impl Address {
 /// place and a reader tells them apart by where they are.
 #[derive(Default, Serialize)]
 pub struct Body {
-    /// The stored plain-text body, PidTagBody.
+    /// The stored plain-text body, PidTagBody; in a MIME message, its text-body parts joined.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
-    /// The stored HTML body, PidTagHtml, decoded by its internet code page.
+    /// The stored HTML body, PidTagHtml, decoded by its internet code page; in a MIME message,
+    /// its HTML-body parts joined.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html: Option<String>,
     /// The stored RTF body, PidTagRtfCompressed, decompressed. RTF is 7-bit text; any byte
@@ -168,7 +169,8 @@ impl Derived {
 pub struct Attachment {
     /// The name of its content's file: the lowercase hex SHA-256 of the bytes, plus the stored
     /// extension when it is short and alphanumeric. An attachment whose content isn't a file (by
-    /// reference, or an embedded message, which a .msg nests under `message`) has none.
+    /// reference, or an embedded message, which a .msg or a MIME message nests under `message`)
+    /// has none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file: Option<String>,
     /// The long filename, else the short one.
@@ -179,7 +181,8 @@ pub struct Attachment {
     /// As stored, without angle brackets.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_id: Option<String>,
-    /// Whether the HTML body refers to it, which is how an inline disposition is stored.
+    /// Whether the HTML body refers to it, which is how an inline disposition is stored; in a
+    /// MIME message, whether its Content-Disposition is inline.
     pub inline: bool,
     /// "none", "by_value", "by_reference", "by_reference_only", "embedded_message", "storage"
     /// or "by_web_reference".
@@ -188,8 +191,9 @@ pub struct Attachment {
     /// The content's size in bytes, when its content is read.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
-    /// In a .msg, an embedded message's own message, with its bodies and its own attachments,
-    /// nested to any depth the reader allows. A .pst's embedded messages have none.
+    /// In a .msg or a MIME message, an embedded message's own message, with its bodies and its
+    /// own attachments, nested to any depth the reader allows. A .pst's embedded messages have
+    /// none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<Box<Message>>,
 }
@@ -209,7 +213,8 @@ pub struct Skipped {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<u32>,
     /// In a .pst, the record's own node id; an attachment's is its node id within its
-    /// message. In a .msg, an attachment's number, the one its storage's name ends in.
+    /// message. In a .msg, an attachment's number, the one its storage's name ends in. In an
+    /// mbox, a message's 1-based ordinal in the file.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u32>,
     pub reason: String,

@@ -1,9 +1,9 @@
 [package]
 name = "spike-ai-pipeline-mail"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "Apache-2.0"
-description = "The mail CLI of spike-ai-pipeline: Outlook .pst stores and .msg messages to a JSON model"
+description = "The mail CLI of spike-ai-pipeline: Outlook .pst stores, .msg messages, .eml messages and mbox files to a JSON model"
 repository = "https://github.com/JaimeStill/spike-ai-pipeline-mail"
 publish = false
 
@@ -28,6 +28,10 @@ htmd = "0.5.6"
 # Compound File Binary (MIT): the container of a .msg, under the CLI's own MS-OXMSG reader
 # (src/msg.rs). It brings fnv, uuid and web-time.
 cfb = "0.16.0"
+# Stalwart's RFC 5322 and MIME parser (Apache-2.0 OR MIT): the reader of an .eml and of an
+# mbox's messages (src/eml.rs, src/mbox.rs). It brings hashify and encodify; full_encoding
+# brings encoding_rs's multi-byte charsets, ISO-2022-JP and GB2312 among them.
+mail-parser = { version = "1.0.1", features = ["full_encoding"] }
 
 # The findings run (scripts/findings.sh, `mise run findings`): the check compiles it, never runs it.
 [[example]]

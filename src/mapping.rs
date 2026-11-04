@@ -100,15 +100,11 @@ fn body(strings: &mut Strings, props: &Bag, code_page: u16, notes: &mut Vec<Stri
         notes.append(&mut lossy);
         html
     });
-    let markdown = match (&html, &from_rtf, &text) {
-        (Some(html), _, _) | (None, Some(html), _) => Some(markdown::from_html(html)),
-        (None, None, Some(text)) => Some(markdown::from_text(text)),
-        (None, None, None) => None,
-    }
-    .and_then(|made| {
-        made.map_err(|reason| notes.push(format!("the Markdown body {reason}; left out")))
-            .ok()
-    });
+    let markdown = markdown::derive(
+        html.as_deref().or(from_rtf.as_deref()),
+        text.as_deref(),
+        notes,
+    );
     Body {
         text,
         html,
@@ -261,7 +257,8 @@ fn binary(bag: &Bag, id: u16) -> Option<&[u8]> {
     }
 }
 
-fn hex(bytes: &[u8]) -> String {
+/// Bytes in lowercase hex, as a binary property is written.
+pub fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
@@ -299,7 +296,12 @@ const FILETIME_TO_UNIX: i64 = 11_644_473_600;
 
 /// A FILETIME as "YYYY-MM-DDTHH:MM:SSZ", or None past year 9999.
 fn iso8601(ticks: i64) -> Option<String> {
-    let seconds = ticks.div_euclid(10_000_000) - FILETIME_TO_UNIX;
+    utc(ticks.div_euclid(10_000_000) - FILETIME_TO_UNIX)
+}
+
+/// Seconds since 1970-01-01 as "YYYY-MM-DDTHH:MM:SSZ", or None past year 9999: the one form of
+/// every time in the model, a MIME message's dates included.
+pub fn utc(seconds: i64) -> Option<String> {
     let (days, second_of_day) = (seconds.div_euclid(86_400), seconds.rem_euclid(86_400));
     let (year, month, day) = civil_from_days(days);
     (year <= 9999).then(|| {

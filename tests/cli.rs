@@ -210,18 +210,39 @@ fn a_compound_file_that_is_not_a_message_is_refused() {
     );
 }
 
+/// What is none of the four formats is refused before any output: no mail at all, a short or
+/// foreign PST header, and text whose header block fails the header-shape check.
 #[test]
-fn neither_a_pst_nor_a_msg_is_refused() {
+fn none_of_the_four_formats_is_refused() {
     for (name, bytes) in [
-        ("empty.pst", &b""[..]),
-        ("text.pst", b"From: someone\r\n\r\nhello"),
+        ("empty.eml", &b""[..]),
+        ("text.pst", b"hello, this is no mail\n"),
         ("short.pst", b"!BDN\0\0\0\0SM"),
         ("client.pst", &pst_header(b"XX", 23)),
+        (
+            "no-from-or-date.eml",
+            b"Subject: hi\r\nTo: bob@example.com\r\n\r\nbody\r\n",
+        ),
+        (
+            "blank-first.eml",
+            b"\r\nFrom: ann@example.com\r\n\r\nbody\r\n",
+        ),
+        (
+            "not-a-field.eml",
+            b"Subject: hi\r\nhello\r\nFrom: ann@example.com\r\n\r\n",
+        ),
+        (
+            "from-in-body.eml",
+            b"Subject: hi\r\n\r\nFrom: ann@example.com\r\n",
+        ),
     ] {
         let input = built(name, bytes);
         assert_refused(
             &[&input],
-            &format!("{}: neither a .pst nor a .msg", input.display()),
+            &format!(
+                "{}: neither a .pst, a .msg, an .eml nor an mbox",
+                input.display()
+            ),
         );
     }
 }

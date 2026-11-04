@@ -1,4 +1,4 @@
-//! The guard every reader call runs inside, in both readers: a reader's error, or its panic,
+//! The guard every reader call runs inside, in every reader: a reader's error, or its panic,
 //! becomes the reason of one record's failure, and the walk goes on.
 
 use std::io;
