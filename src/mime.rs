@@ -144,7 +144,7 @@ fn headers(parsed: &MessageRef<'_>, notes: &mut Vec<String>) -> Message {
         sender: parsed
             .from()
             .and_then(|from| from.first())
-            .and_then(|mailbox| address(mailbox.name(), mailbox.address(), Some(SMTP))),
+            .and_then(|mailbox| address(mailbox.name(), mailbox.address())),
         to: addresses(parsed.to()),
         cc: addresses(parsed.cc()),
         bcc: addresses(parsed.bcc()),
@@ -312,8 +312,6 @@ struct Part<'m> {
 /// Reads one attachment part.
 fn attachment<'m>(part: &MessagePart<'m>) -> Part<'m> {
     let mut notes = Vec::new();
-    let owned = |text: Option<&str>| text.filter(|text| !text.is_empty()).map(str::to_owned);
-    let filename = owned(part.attachment_name());
     let mime_type = part.content_type().map(|content_type| {
         let ctype = content_type.ctype();
         match content_type.subtype() {
@@ -322,7 +320,7 @@ fn attachment<'m>(part: &MessagePart<'m>) -> Part<'m> {
         }
     });
     let mut record = Attachment {
-        filename,
+        filename: owned(part.attachment_name()),
         mime_type: owned(mime_type.as_deref()),
         content_id: owned(part.content_id()),
         inline: part
@@ -369,6 +367,11 @@ fn attachment<'m>(part: &MessagePart<'m>) -> Part<'m> {
     }
 }
 
+/// A text that is present and not empty, owned.
+fn owned(text: Option<&str>) -> Option<String> {
+    text.filter(|text| !text.is_empty()).map(str::to_owned)
+}
+
 /// A note for the decoding problems mail-parser found in `what`, when it found any.
 fn lossy_note(problems: DecodeProblems, what: &str, notes: &mut Vec<String>) {
     if problems.is_empty() {
@@ -399,13 +402,13 @@ fn lossy_note(problems: DecodeProblems, what: &str, notes: &mut Vec<String>) {
     ));
 }
 
-/// An address of its name and address, either of which may be missing but not both.
-fn address(name: Option<&str>, address: Option<&str>, kind: Option<&str>) -> Option<Address> {
-    let owned = |text: Option<&str>| text.filter(|text| !text.is_empty()).map(str::to_owned);
+/// An address of its name and address, either of which may be missing but not both, with
+/// address type SMTP.
+fn address(name: Option<&str>, address: Option<&str>) -> Option<Address> {
     let made = Address {
         name: owned(name),
         address: owned(address),
-        address_type: kind.map(str::to_owned),
+        address_type: Some(SMTP.to_owned()),
     };
     (made.name.is_some() || made.address.is_some()).then_some(made)
 }
@@ -414,7 +417,7 @@ fn address(name: Option<&str>, address: Option<&str>, kind: Option<&str>) -> Opt
 fn addresses(list: Option<AddressList<'_>>) -> Vec<Address> {
     list.into_iter()
         .flat_map(|list| list.mailboxes())
-        .filter_map(|mailbox| address(mailbox.name(), mailbox.address(), Some(SMTP)))
+        .filter_map(|mailbox| address(mailbox.name(), mailbox.address()))
         .collect()
 }
 

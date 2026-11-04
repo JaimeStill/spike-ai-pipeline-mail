@@ -1,7 +1,8 @@
 //! The findings run of evidence 16 for the CLI alone: the fields it recovers, per field kind,
 //! against the committed fixtures' truth, and its time and peak memory on plaso's store and the
-//! scale store, as a .pst and as an mboxrd of the same messages. scripts/findings.sh builds it and runs it (`mise run findings`); the check only
-//! compiles it. It prints the tables and writes one results file, where the script says.
+//! scale store, as a .pst and as an mboxrd of the same messages. scripts/findings.sh builds it
+//! and runs it (`mise run findings`); the check only compiles it. It prints the tables and
+//! writes one results file, where the script says.
 //!
 //! The truth it scores against:
 //! - the generated fixtures': tests/fixtures/generated/truth.json, the hand truth of the .eml
@@ -689,22 +690,11 @@ fn generated_msg(bin: &Path, dir: &Path) -> Result<Score, String> {
 /// eight, or the MIME group's own.
 fn eml_group(bin: &Path, dir: &Path) -> Result<Score, String> {
     let truth = read_json(&dir.join("truth.json"))?;
-    let sources: Vec<String> = truth["messages"]
-        .as_object()
-        .into_iter()
-        .flatten()
-        .map(|(source, _)| source.clone())
-        .collect();
-    eml_against(bin, dir, &truth, &sources)
-}
-
-/// Each eml/<source> under dir, its one message line scored against truth's entry for it.
-fn eml_against(bin: &Path, dir: &Path, truth: &Value, sources: &[String]) -> Result<Score, String> {
     let group = dir
         .file_name()
         .map_or(String::new(), |n| n.to_string_lossy().into_owned());
     let mut score = Score::new();
-    for source in sources {
+    for (source, want) in truth["messages"].as_object().into_iter().flatten() {
         let file = format!("eml/{source}");
         let lines = lines(bin, &dir.join(&file))?;
         score.files.push(format!("{group}/{file}"));
@@ -721,14 +711,7 @@ fn eml_against(bin: &Path, dir: &Path, truth: &Value, sources: &[String]) -> Res
             Some(&json!(source)),
             false,
         );
-        score_generated(
-            &mut score,
-            &file,
-            source,
-            got,
-            &truth["messages"][source],
-            Generator::Source,
-        );
+        score_generated(&mut score, &file, source, got, want, Generator::Source);
     }
     Ok(score)
 }
