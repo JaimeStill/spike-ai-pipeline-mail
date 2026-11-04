@@ -27,5 +27,5 @@ description = "Report every crate, mise tool, and GitHub Action pin behind its l
 run = "scripts/currency.sh"
 
 [tasks.findings]
-description = "Score the CLI's fields against the fixtures' truth and time it on plaso's store and the scale store; on the laptop, never in CI or the check; writes only .state/findings/ and prints the tables, unless `-- --record [name]` records the run in a new docs/findings/mail-cli/runs/<name>/ (<date>-<n> by default)"
+description = "Score the CLI's fields against the fixtures' truth and time it on plaso's store and the scale store, as a .pst and as an mboxrd; on the laptop, never in CI or the check; writes only .state/findings/ and prints the tables, unless `-- --record [name]` records the run in a new docs/findings/mail-cli/runs/<name>/ (<date>-<n> by default)"
 run = "scripts/findings.sh"

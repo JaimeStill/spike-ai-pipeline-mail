@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # findings runs the CLI's finding for evidence 16 on this machine, never in CI and never in the
-# check: the fields the CLI recovers per field kind against the committed fixtures' truth, and its
-# time and peak memory on every committed .pst, on plaso's 59 MB store, and on the scale store,
-# each with and without --attachments. Run it through `mise run findings`, which passes its
+# check: the fields the CLI recovers per field kind against the committed fixtures' truth (the
+# .pst, .msg and .eml against their hand truth, and the MIME group's mboxes against their
+# sources), and its time and peak memory on every committed .pst, on plaso's 59 MB store, and on
+# the scale store as a .pst and as an mboxrd, each with and without --attachments. Run it through `mise run findings`, which passes its
 # arguments here:
 #
 #   mise run findings                     keeps nothing: the results go to
@@ -13,8 +14,8 @@
 #                                         run directory is never overwritten
 #
 # A name is letters, digits, '.', '_', and '-', and doesn't start with '.'. It needs:
-# - the scale store, .state/scale/scale.pst and its scale.json, which
-#   `MISE_ENV=fixtures mise run scale` builds (about 2 GB; never committed);
+# - the scale store, .state/scale/scale.pst, scale.mboxrd and their scale.json, which
+#   `MISE_ENV=fixtures mise run scale` builds (about 2 GB and 2.7 GB; never committed);
 # - plaso's store, which it fetches into .state/findings/ at a pinned commit and refuses unless
 #   its SHA-256 is the pinned one (never committed);
 # - cc, to build bench/rusage.c, the wrapper that measures each run.
@@ -58,7 +59,7 @@ case "$#" in
 esac
 
 scale=.state/scale
-if [[ ! -f $scale/scale.pst || ! -f $scale/scale.json ]]; then
+if [[ ! -f $scale/scale.pst || ! -f $scale/scale.mboxrd || ! -f $scale/scale.json ]]; then
 	echo "findings: no scale store in $scale; build it first: MISE_ENV=fixtures mise run scale" >&2
 	exit 1
 fi

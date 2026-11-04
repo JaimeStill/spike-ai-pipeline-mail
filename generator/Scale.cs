@@ -17,6 +17,11 @@ namespace SpikeAiPipeline.Mail.Generator;
 /// folders and order, on every run: content_sha256 in scale.json, a hash of every message's
 /// folder and MIME bytes in order, shows it. The .pst's bytes still differ on every run, as PST
 /// Builder 1.3.0 writes a random store UID and search keys (manifest.json's note).
+///
+/// The same messages, in the same order, are also written as scale.mboxrd beside the store, for
+/// the CLI's mbox reading, by scripts/mboxrd.sh's conventions: one fixed separator line before
+/// each message, one more ">" on each of its lines matching ^>*From , and a blank line after it.
+/// Its bytes are a function of the messages alone, so scale.json records its size and SHA-256.
 /// </summary>
 public static class Scale
 {
@@ -48,6 +53,7 @@ public static class Scale
         [property: JsonPropertyName("content_sha256")] string ContentSha256,
         [property: JsonPropertyName("counts")] Counts Counts,
         [property: JsonPropertyName("parts")] IReadOnlyList<Part> Parts,
+        [property: JsonPropertyName("mboxrd")] Mboxrd Mboxrd,
         [property: JsonPropertyName("seconds")] double Seconds);
 
     /// <summary>What the messages hold, counted as they were made.</summary>
@@ -66,6 +72,20 @@ public static class Scale
     public sealed record Part(
         [property: JsonPropertyName("file")] string File,
         [property: JsonPropertyName("size")] long Size);
+
+    /// <summary>The mboxrd of the same messages, beside the .pst; unlike the .pst's, its bytes are pinned.</summary>
+    public sealed record Mboxrd(
+        [property: JsonPropertyName("note")] string Note,
+        [property: JsonPropertyName("file")] string File,
+        [property: JsonPropertyName("size")] long Size,
+        [property: JsonPropertyName("sha256")] string Sha256);
+
+    const string MboxrdNote =
+        "The same messages in the same order, as an mboxrd, by scripts/mboxrd.sh's conventions: the "
+        + "separator line \"" + MboxrdWriter.SeparatorText + "\" (LF) before each message, one more \">\" on "
+        + "each of its lines matching ^>*From , and a blank line (LF) after it; the messages keep their "
+        + "CRLF. Its bytes are a function of the messages alone, so its SHA-256 is the same on every "
+        + "run with these parameters and tools.";
 
     const string Note =
         "Written by the generator's scale mode (MISE_ENV=fixtures mise run scale); never committed. "
@@ -140,6 +160,7 @@ public static class Scale
 
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, "scale.pst");
+        var mboxrdPath = Path.Combine(dir, "scale.mboxrd");
         // A previous run's parts would be mistaken for this one's.
         foreach (var old in Directory.GetFiles(dir, "scale*.pst"))
         {
@@ -152,14 +173,17 @@ public static class Scale
         var progress = new Progress<ExportProgress>(p =>
             Console.Error.WriteLine($"scale: {p.ItemsWritten} items, {p.BytesWritten:N0} bytes"));
         using var session = PstExportSession.Create(path, progress: progress, progressInterval: 5000);
+        using var mbox = new MboxrdWriter(mboxrdPath);
         for (var n = 0; n < messages; n++)
         {
             var (folder, eml, received) = maker.Next(n);
             content.AppendData(Encoding.UTF8.GetBytes(folder + "\n"));
             content.AppendData(eml);
             session.AddEml(folder, eml, received);
+            mbox.Add(eml);
         }
         session.Complete();
+        var mboxrd = mbox.Complete(MboxrdNote, Path.GetFileName(mboxrdPath));
         // The session's parts are the files it wrote: scale.pst, then scale-002.pst and on, past
         // PST Builder's single-file limit.
         var parts = Directory.GetFiles(dir, "scale*.pst")
@@ -169,7 +193,7 @@ public static class Scale
         clock.Stop();
 
         var record = new Record(Note, parameters, Fixtures.Tools(),
-            Convert.ToHexStringLower(content.GetHashAndReset()), maker.Counts(messages), parts,
+            Convert.ToHexStringLower(content.GetHashAndReset()), maker.Counts(messages), parts, mboxrd,
             Math.Round(clock.Elapsed.TotalSeconds, 1));
         var options = new JsonSerializerOptions
         {
@@ -177,9 +201,63 @@ public static class Scale
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
         File.WriteAllText(Path.Combine(dir, "scale.json"), JsonSerializer.Serialize(record, options) + "\n");
-        Console.WriteLine($"scale: {messages} messages in {string.Join(", ", parts.Select(p => $"{p.File} ({p.Size:N0} bytes)"))}, "
+        Console.WriteLine($"scale: {messages} messages in {string.Join(", ", parts.Select(p => $"{p.File} ({p.Size:N0} bytes)"))}"
+            + $" and {mboxrd.File} ({mboxrd.Size:N0} bytes, SHA-256 {mboxrd.Sha256}), "
             + $"content {record.ContentSha256}, {record.Seconds} s");
         return 0;
+    }
+
+    /// <summary>
+    /// Writes messages as an mboxrd, as scripts/mboxrd.sh does: the fixed separator line, the
+    /// message with one more ">" on each line matching ^>*From , then a blank line. A line is
+    /// what sed reads as one, up to an LF, so a CRLF line keeps its CR. The SHA-256 and size are
+    /// taken from the bytes as they are written.
+    /// </summary>
+    sealed class MboxrdWriter(string path) : IDisposable
+    {
+        public const string SeparatorText = "From MAILER-DAEMON Thu Jan  1 00:00:00 1970";
+        static readonly byte[] Separator = Encoding.ASCII.GetBytes(SeparatorText + "\n");
+
+        readonly FileStream file = new(path, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 20);
+        readonly IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        long size;
+
+        public void Add(byte[] eml)
+        {
+            Write(Separator);
+            for (var start = 0; start < eml.Length;)
+            {
+                var end = Array.IndexOf(eml, (byte)'\n', start);
+                end = end < 0 ? eml.Length : end + 1;
+                var line = eml.AsSpan(start, end - start);
+                if (line.TrimStart((byte)'>').StartsWith("From "u8))
+                {
+                    Write(">"u8);
+                }
+                Write(line);
+                start = end;
+            }
+            Write("\n"u8);
+        }
+
+        public Mboxrd Complete(string note, string name)
+        {
+            file.Flush();
+            return new Mboxrd(note, name, size, Convert.ToHexStringLower(hash.GetHashAndReset()));
+        }
+
+        void Write(ReadOnlySpan<byte> bytes)
+        {
+            file.Write(bytes);
+            hash.AppendData(bytes);
+            size += bytes.Length;
+        }
+
+        public void Dispose()
+        {
+            file.Dispose();
+            hash.Dispose();
+        }
     }
 
     static int Usage()
