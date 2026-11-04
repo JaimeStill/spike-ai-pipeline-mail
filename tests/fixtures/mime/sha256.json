@@ -1,4 +1,5 @@
 [
   {"file": "eml/09-threading.eml", "sha256": "0bd5fd0a0f23a9b26158c13da173d596e39651afb1d0cd8bb2cd7ec2a7f1b7da"},
+  {"file": "nine.mboxrd", "sha256": "4f6a021e567c8fcf46773500346223179d2b59537bcf9deb71adc6513af886bf"},
   {"file": "truth.json", "sha256": "c2af18c903b7612fed789d1b95e31b603401ae6a37db18247ad6e1342aaf9e0f"}
 ]

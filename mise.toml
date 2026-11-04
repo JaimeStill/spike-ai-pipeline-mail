@@ -18,6 +18,10 @@ cargo build --release --locked --target "$target"
 "target/$target/release/spike-ai-pipeline-mail" --version
 '''
 
+[tasks.mboxrd]
+description = "Write the MIME group's mboxrd, tests/fixtures/mime/nine.mboxrd, from its nine .eml; the check rebuilds it and compares it byte for byte"
+run = "scripts/mboxrd.sh"
+
 [tasks.currency]
 description = "Report every crate, mise tool, and GitHub Action pin behind its latest; writes nothing"
 run = "scripts/currency.sh"

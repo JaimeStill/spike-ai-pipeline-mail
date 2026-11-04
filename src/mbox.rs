@@ -1,8 +1,14 @@
 //! The mbox reader: a store line, then each message in file order, read one at a time by
-//! mail-parser's mbox iterator, which unquotes ">From " lines as mboxrd does. A message's id is
-//! its 1-based ordinal; no message has a folder. A message that fails the header-shape check, or
-//! that mail-parser can't parse, gives a skipped line in its place, with a warning, and the run
-//! goes on; a read that fails partway gives one for the message it was reading, and ends there.
+//! mail-parser's mbox iterator, so memory follows the message being read, not the file. A
+//! message's id is its 1-based ordinal; no message has a folder. A message that fails the
+//! header-shape check, or that mail-parser can't parse, gives a skipped line in its place, with a
+//! warning, and the run goes on; a read that fails partway gives one for the message it was
+//! reading, and ends there.
+//!
+//! The iterator reads mboxrd: a line quoted ">From ", ">>From " and so on loses one ">". An
+//! mboxo is read the same way, so a body line that was ">From " to begin with loses its ">" too.
+//! A message runs to the next line starting "From ", and mboxcl's Content-Length is not read, so
+//! in an mboxcl or mboxcl2 an unquoted body line starting "From " starts a new message.
 
 use std::fs::File;
 use std::io::{BufReader, Write};
@@ -32,7 +38,10 @@ pub fn read(path: &Path, out: &mut Lines<impl Write>, files: &mut Files) -> Resu
     .map_err(Fault::Output)?;
     let parser = mime::parser();
     let mut buffers = MessageBuffers::new();
-    for (ordinal, entry) in (1u32..).zip(MessageIterator::new(BufReader::new(file))) {
+    // A separator line with nothing after it is no message, and takes no ordinal.
+    let entries = MessageIterator::new(BufReader::new(file))
+        .filter(|entry| !matches!(entry, Ok(entry) if unseparated(entry.contents()).is_empty()));
+    for (ordinal, entry) in (1u32..).zip(entries) {
         let place = format!("message {ordinal}");
         let entry = match entry {
             Ok(entry) => entry,
@@ -46,7 +55,7 @@ pub fn read(path: &Path, out: &mut Lines<impl Write>, files: &mut Files) -> Resu
                 break;
             }
         };
-        let contents = entry.contents();
+        let contents = unseparated(entry.contents());
         if !sniff::header_shape(contents).unwrap_or(false) {
             let reason = "it has no header block with a From or Date field".to_owned();
             skip(out, &place, ordinal, reason)?;
@@ -76,6 +85,21 @@ pub fn read(path: &Path, out: &mut Lines<impl Write>, files: &mut Files) -> Resu
     Ok(())
 }
 
+/// A message's contents without the blank line that ends it, which the mbox writer adds before
+/// the next separator line and after the last message, so the message is its source byte for
+/// byte. Contents that don't end in a blank line are left as they are.
+fn unseparated(contents: &[u8]) -> &[u8] {
+    let Some(rest) = contents.strip_suffix(b"\n") else {
+        return contents;
+    };
+    let rest = rest.strip_suffix(b"\r").unwrap_or(rest);
+    if rest.is_empty() || rest.ends_with(b"\n") {
+        rest
+    } else {
+        contents
+    }
+}
+
 /// Writes a message's skipped line, and its warning.
 fn skip(
     out: &mut Lines<impl Write>,
@@ -93,4 +117,31 @@ fn skip(
         reason,
     })
     .map_err(Fault::Output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_blank_line_ending_a_message_is_the_separators() {
+        for (contents, message) in [
+            (
+                &b"Subject: a\r\n\r\nbody\r\n\n"[..],
+                &b"Subject: a\r\n\r\nbody\r\n"[..],
+            ),
+            (b"Subject: a\n\nbody\n\n", b"Subject: a\n\nbody\n"),
+            (
+                b"Subject: a\r\n\r\nbody\r\n\r\n",
+                b"Subject: a\r\n\r\nbody\r\n",
+            ),
+            (b"Subject: a\n\nbody\n", b"Subject: a\n\nbody\n"),
+            (b"Subject: a\n\nbody", b"Subject: a\n\nbody"),
+            (b"\n", b""),
+            (b"\r\n", b""),
+            (b"", b""),
+        ] {
+            assert_eq!(unseparated(contents), message, "{contents:?}");
+        }
+    }
 }
