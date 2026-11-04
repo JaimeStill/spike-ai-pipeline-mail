@@ -198,6 +198,14 @@ pub fn warn_all(place: &str, notes: Vec<String>) {
     }
 }
 
+/// Writes one warning line for each note of a record and of the records below it, each note's
+/// place following `place`.
+pub fn warn_below(place: &str, notes: Vec<(String, String)>) {
+    for (below, note) in notes {
+        warn(&format!("{place}{below}"), &note);
+    }
+}
+
 /// The message a panic was raised with.
 pub fn panic_text(payload: &(dyn Any + Send)) -> String {
     payload

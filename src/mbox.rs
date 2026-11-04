@@ -8,13 +8,13 @@ use std::fs::File;
 use std::io::{BufReader, Write};
 use std::path::Path;
 
+use mail_parser::MessageBuffers;
 use mail_parser::mailbox::mbox::MessageIterator;
-use mail_parser::{MessageBuffers, MessageParser};
 
 use crate::files::Files;
 use crate::jsonl::Lines;
 use crate::model::{self, Skipped, Store};
-use crate::{Fault, mime, sniff, warn, warn_all};
+use crate::{Fault, mime, sniff, warn, warn_below};
 
 /// Reads the mbox at `path` and writes its store line and its messages' lines to `out`.
 pub fn read(path: &Path, out: &mut Lines<impl Write>, files: &mut Files) -> Result<(), Fault> {
@@ -30,7 +30,7 @@ pub fn read(path: &Path, out: &mut Lines<impl Write>, files: &mut Files) -> Resu
         display_name: None,
     })
     .map_err(Fault::Output)?;
-    let parser = MessageParser::new();
+    let parser = mime::parser();
     let mut buffers = MessageBuffers::new();
     for (ordinal, entry) in (1u32..).zip(MessageIterator::new(BufReader::new(file))) {
         let place = format!("message {ordinal}");
@@ -56,10 +56,21 @@ pub fn read(path: &Path, out: &mut Lines<impl Write>, files: &mut Files) -> Resu
             skip(out, &place, ordinal, "it can't be parsed".to_owned())?;
             continue;
         };
-        let (mut message, notes) = mime::message(&parsed.root());
-        message.id = Some(ordinal);
-        warn_all(&place, notes);
-        out.write(&message).map_err(Fault::Output)?;
+        let mut read = mime::message(&parsed.root(), files)?;
+        read.message.id = Some(ordinal);
+        warn_below(&place, read.notes);
+        out.write(&read.message).map_err(Fault::Output)?;
+        for (id, reason) in read.skipped {
+            out.write(&Skipped {
+                line: "skipped",
+                kind: "attachment",
+                folder: None,
+                message: Some(ordinal),
+                id: Some(id),
+                reason,
+            })
+            .map_err(Fault::Output)?;
+        }
         buffers = parsed.into_buffers();
     }
     Ok(())

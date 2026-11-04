@@ -100,15 +100,11 @@ fn body(strings: &mut Strings, props: &Bag, code_page: u16, notes: &mut Vec<Stri
         notes.append(&mut lossy);
         html
     });
-    let markdown = match (&html, &from_rtf, &text) {
-        (Some(html), _, _) | (None, Some(html), _) => Some(markdown::from_html(html)),
-        (None, None, Some(text)) => Some(markdown::from_text(text)),
-        (None, None, None) => None,
-    }
-    .and_then(|made| {
-        made.map_err(|reason| notes.push(format!("the Markdown body {reason}; left out")))
-            .ok()
-    });
+    let markdown = markdown::derive(
+        html.as_deref().or(from_rtf.as_deref()),
+        text.as_deref(),
+        notes,
+    );
     Body {
         text,
         html,

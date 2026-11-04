@@ -1,6 +1,19 @@
 //! The derived Markdown body, made by htmd from HTML, or from plain text set as HTML so that
 //! htmd escapes whatever Markdown would otherwise read in it.
 
+/// The derived Markdown body, by the one rule every format follows: made from `html` when the
+/// message has an HTML body, else from `text`, read literally. One that can't be made is left
+/// out, with a note.
+pub fn derive(html: Option<&str>, text: Option<&str>, notes: &mut Vec<String>) -> Option<String> {
+    let made = match (html, text) {
+        (Some(html), _) => from_html(html),
+        (None, Some(text)) => from_text(text),
+        (None, None) => return None,
+    };
+    made.map_err(|reason| notes.push(format!("the Markdown body {reason}; left out")))
+        .ok()
+}
+
 /// Markdown from an HTML body. Images keep their sources as written, `cid:` ones included. The
 /// head, styles and scripts are no part of the text: htmd would write a style's rules as text.
 pub fn from_html(html: &str) -> Result<String, String> {

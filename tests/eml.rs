@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{built, fixture, run};
+use common::{built, fixture, names, run, run_in, scratch, sha256};
 use serde_json::{Value, json};
 
 const SOURCES: &[&str] = &[
@@ -18,10 +18,9 @@ const SOURCES: &[&str] = &[
     "08-forward-attached-message.eml",
 ];
 
-/// Each truth field, and the field of the model it gives.
+/// Each truth field compared as it is, and the field of the model it gives.
 const FIELDS: &[(&str, &str)] = &[
     ("subject", "subject"),
-    ("sender", "sender"),
     ("date", "submit_time"),
     ("received", "delivery_time"),
     ("message_id", "message_id"),
@@ -29,18 +28,73 @@ const FIELDS: &[(&str, &str)] = &[
     ("references", "references"),
 ];
 
-/// A truth recipient list as the model writes it: each recipient with address type SMTP.
+/// The truth fields compared otherwise: each address with address type SMTP, the bodies, the
+/// attachments and embedded messages as attachment records. The charset is the source's label,
+/// no field of the model, and importance is read from headers this reader doesn't map yet.
+const MAPPED: &[&str] = &[
+    "sender",
+    "to",
+    "cc",
+    "bcc",
+    "body",
+    "attachments",
+    "embedded",
+    "charset",
+    "importance",
+];
+
+fn truth() -> Value {
+    serde_json::from_slice(&std::fs::read(fixture("generated/truth.json")).unwrap()).unwrap()
+}
+
+/// A truth address as the model writes it: with address type SMTP.
+fn smtp(address: &Value) -> Value {
+    let mut address = address.clone();
+    address["address_type"] = json!("SMTP");
+    address
+}
+
+/// A truth recipient list as the model writes it.
 fn recipients(truth: Option<&Value>) -> Option<Value> {
     let list = truth?.as_array().unwrap();
-    let mapped = list
-        .iter()
-        .map(|r| {
-            let mut r = r.clone();
-            r["address_type"] = json!("SMTP");
-            r
+    Some(Value::Array(list.iter().map(smtp).collect()))
+}
+
+/// The attachment records a truth entry gives, in the source's order: each attachment by value,
+/// its file named by its SHA-256 and its filename's extension, then each attached message,
+/// embedded, without a file. The generated sources attach their messages last.
+fn attachments(truth: &Value) -> Vec<Value> {
+    let mut records: Vec<Value> = truth
+        .get("attachments")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|a| {
+            let filename = a["filename"].as_str().unwrap();
+            let (_, extension) = filename.rsplit_once('.').unwrap();
+            let mut record = json!({
+                "file": format!("{}.{extension}", a["sha256"].as_str().unwrap()),
+                "filename": filename,
+                "mime_type": a["mime_type"],
+                "inline": a["inline"],
+                "method": "by_value",
+                "size": a["size"],
+            });
+            if let Some(cid) = a.get("content_id") {
+                record["content_id"] = cid.clone();
+            }
+            record
         })
         .collect();
-    Some(Value::Array(mapped))
+    let embedded = truth.get("embedded").and_then(Value::as_array);
+    records.extend(embedded.into_iter().flatten().map(|_| {
+        json!({
+            "mime_type": "message/rfc822",
+            "inline": false,
+            "method": "embedded_message",
+        })
+    }));
+    records
 }
 
 /// The source's header block, its blank line left out, as the transport headers hold it.
@@ -50,10 +104,89 @@ fn header_block(bytes: &[u8]) -> String {
     text[..end + 2].to_owned()
 }
 
+/// One message against its truth entry: a message line, or, with `nested`, a message embedded
+/// in another, which is no line. The transport headers are the caller's to check.
+fn assert_message(got: &Value, truth: &Value, source: &str, nested: bool) {
+    for key in truth.as_object().unwrap().keys() {
+        assert!(
+            MAPPED.contains(&key.as_str()) || FIELDS.iter().any(|(from, _)| from == key),
+            "{source}: truth field {key} is compared"
+        );
+    }
+    assert_eq!(
+        got.get("line"),
+        (!nested).then(|| json!("message")).as_ref(),
+        "{source}: line"
+    );
+    for (from, field) in FIELDS {
+        assert_eq!(got.get(field), truth.get(from), "{source}: {field}");
+    }
+    assert_eq!(
+        got.get("sender"),
+        truth.get("sender").map(smtp).as_ref(),
+        "{source}: sender"
+    );
+    for field in ["to", "cc", "bcc"] {
+        assert_eq!(
+            got.get(field),
+            recipients(truth.get(field)).as_ref(),
+            "{source}: {field}"
+        );
+    }
+    for field in ["id", "folder", "class"] {
+        assert_eq!(got.get(field), None, "{source}: {field}");
+    }
+    for body in ["text", "html"] {
+        let got = got["body"]
+            .get(body)
+            .map(|text| text.as_str().unwrap().replace("\r\n", "\n"));
+        assert_eq!(
+            got.as_deref(),
+            truth["body"].get(body).map(|t| t.as_str().unwrap()),
+            "{source}: body {body}"
+        );
+    }
+    assert_eq!(got["body"].get("rtf"), None, "{source}: body rtf");
+    let derived = got["body"]["derived"].as_object().unwrap();
+    assert_eq!(
+        derived.keys().collect::<Vec<_>>(),
+        ["markdown"],
+        "{source}: derived bodies"
+    );
+
+    let expected = attachments(truth);
+    let records = got.get("attachments").and_then(Value::as_array);
+    let records = records.map(Vec::as_slice).unwrap_or_default();
+    assert_eq!(records.len(), expected.len(), "{source}: attachments");
+    let embedded = truth.get("embedded").and_then(Value::as_array);
+    let mut embedded = embedded.into_iter().flatten();
+    for (record, expected) in records.iter().zip(expected) {
+        let mut record = record.clone();
+        let message = record.as_object_mut().unwrap().remove("message");
+        assert_eq!(record, expected, "{source}: attachment");
+        if record["method"] == "embedded_message" {
+            let truth = embedded.next().unwrap();
+            let message = message.expect("an embedded message is nested under its record");
+            let id = truth["message_id"].as_str().unwrap();
+            assert!(
+                message["transport_headers"]
+                    .as_str()
+                    .unwrap()
+                    .starts_with(&format!("Message-ID: {id}\r\n")),
+                "{source}: embedded transport headers"
+            );
+            assert_message(&message, truth, &format!("{source}, embedded"), true);
+        } else {
+            assert_eq!(message, None, "{source}: attachment message");
+        }
+    }
+}
+
+/// Each generated .eml is a store line and one message line that matches its truth in full,
+/// without a warning.
 #[test]
-fn eml_headers_match_the_truth() {
-    let truth: Value =
-        serde_json::from_slice(&std::fs::read(fixture("generated/truth.json")).unwrap()).unwrap();
+fn eml_files_match_the_truth() {
+    let truth = truth();
     for source in SOURCES {
         let path = fixture(&format!("generated/eml/{source}"));
         let out = run(&[&path]);
@@ -66,29 +199,71 @@ fn eml_headers_match_the_truth() {
             json!({"line": "store", "schema": "1", "format": "eml"}),
             "{source}"
         );
-        let got = &lines[1];
-        let truth = &truth["messages"][source];
-        assert_eq!(got["line"], "message", "{source}");
-        for (from, field) in FIELDS {
-            assert_eq!(got.get(field), truth.get(from), "{source}: {field}");
-        }
-        for field in ["to", "cc", "bcc"] {
-            assert_eq!(
-                got.get(field),
-                recipients(truth.get(field)).as_ref(),
-                "{source}: {field}"
-            );
-        }
-        for field in ["id", "folder", "class"] {
-            assert_eq!(got.get(field), None, "{source}: {field}");
-        }
+        assert_message(&lines[1], &truth["messages"][source], source, false);
         let bytes = std::fs::read(&path).unwrap();
         assert_eq!(
-            got["transport_headers"].as_str(),
+            lines[1]["transport_headers"].as_str(),
             Some(header_block(&bytes).as_str()),
             "{source}: transport_headers"
         );
     }
+}
+
+/// The Markdown body is made from the HTML, keeping its cid: image, else from the text.
+#[test]
+fn markdown_is_made_from_the_html_else_the_text() {
+    let markdown = |source: &str| {
+        let out = run(&[fixture(&format!("generated/eml/{source}"))]);
+        out.lines()[1]["body"]["derived"]["markdown"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    assert_eq!(
+        markdown("03-html-inline-image.eml"),
+        "We found a **moth** in relay 70, panel F.\n\n![moth](cid:moth@example.net)"
+    );
+    assert_eq!(
+        markdown("02-reply-latin1.eml"),
+        "Ada,\n\nSplendid. The café in Zürich serves crème brûlée; we shall  \n\
+         discuss Note G there.\n\n\\> I have finished the notes on the engine.\n\nCharles"
+    );
+}
+
+/// With --attachments, each distinct content is written once, named by its SHA-256 and
+/// extension, in a directory created as it was missing; an embedded message has no file.
+#[test]
+fn attachments_are_written_by_content() {
+    for source in SOURCES {
+        let dir = scratch(&format!("eml-attachments-{source}")).join("created");
+        let path = fixture(&format!("generated/eml/{source}"));
+        let out = run(&[path.as_os_str(), "--attachments".as_ref(), dir.as_os_str()]);
+        assert_eq!(out.code, Some(0), "{source}: {}", out.stderr);
+        let lines = out.lines();
+        let mut expected: Vec<String> = lines[1]
+            .get("attachments")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|record| Some(record.get("file")?.as_str()?.to_owned()))
+            .collect();
+        expected.sort_unstable();
+        expected.dedup();
+        assert_eq!(names(&dir), expected, "{source}");
+        for name in &expected {
+            let (sha, _) = name.split_once('.').unwrap();
+            assert_eq!(sha256(&dir.join(name)), sha, "{source}: {name}");
+        }
+    }
+}
+
+/// Without --attachments, a run writes nothing to disk: its working directory stays empty.
+#[test]
+fn nothing_is_written_without_the_flag() {
+    let dir = scratch("eml-no-attachments");
+    let out = run_in(&dir, &[fixture("generated/eml/03-html-inline-image.eml")]);
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
+    assert_eq!(names(&dir), Vec::<String>::new());
 }
 
 /// The message line of a test-built .eml, and its stderr.
@@ -113,7 +288,7 @@ fn groups_are_flattened() {
     );
     assert_eq!(
         message["sender"],
-        json!({"name": "Ann", "address": "ann@example.com"})
+        json!({"name": "Ann", "address": "ann@example.com", "address_type": "SMTP"})
     );
     assert_eq!(
         message["to"],
@@ -192,5 +367,174 @@ fn an_eml_of_4_gib_is_refused() {
             "spike-ai-pipeline-mail: error: {}: an .eml of 4 GiB or more is not read\n",
             path.display()
         )
+    );
+}
+
+/// A message `levels` deep: each level a text part and, but for the last, the next level
+/// attached as message/rfc822, so the last is `levels - 1` messages below the top.
+fn nested(levels: usize) -> Vec<u8> {
+    let mut message = format!(
+        "From: ann@example.com\r\nSubject: level {}\r\n\r\nthe last level\r\n",
+        levels - 1
+    );
+    for level in (0..levels - 1).rev() {
+        message = format!(
+            "From: ann@example.com\r\nSubject: level {level}\r\n\
+             Content-Type: multipart/mixed; boundary=\"b{level}\"\r\n\r\n\
+             --b{level}\r\nContent-Type: text/plain\r\n\r\nlevel {level}\r\n\
+             --b{level}\r\nContent-Type: message/rfc822\r\n\r\n{message}\r\n\
+             --b{level}--\r\n"
+        );
+    }
+    message.into_bytes()
+}
+
+/// Embedded messages nest to 16 levels below the top; one deeper is listed, embedded, without
+/// its message, with one warning naming its place.
+#[test]
+fn nesting_stops_at_16_levels() {
+    let (message, stderr) = read("nested.eml", &nested(18));
+    let mut at = &message;
+    let mut place = "message".to_owned();
+    for level in 1..=16 {
+        let record = &at["attachments"][0];
+        assert_eq!(record["method"], "embedded_message", "level {level}");
+        at = &record["message"];
+        assert_eq!(at["subject"], format!("level {level}"));
+        assert_eq!(at.get("line"), None, "level {level}");
+        place.push_str(", attachment 1, message");
+    }
+    let record = &at["attachments"][0];
+    assert_eq!(
+        record,
+        &json!({"mime_type": "message/rfc822", "inline": false, "method": "embedded_message"})
+    );
+    assert_eq!(
+        stderr,
+        format!(
+            "spike-ai-pipeline-mail: warning: {place}, attachment 1: \
+             an embedded message nested deeper than 16 messages; listed without it\n"
+        )
+    );
+}
+
+/// `bytes` in base64, by coreutils' base64, so the tests take no encoding crate.
+fn base64(bytes: &[u8]) -> String {
+    let path = built("base64.in", bytes);
+    let out = std::process::Command::new("base64")
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    String::from_utf8(out.stdout).unwrap().replace('\n', "\r\n")
+}
+
+/// A transfer-encoded message/rfc822 part is an embedded message as an unencoded one is, at
+/// every level, past mail-parser's default of 3 encoded levels; an inline disposition is kept.
+#[test]
+fn an_encoded_message_is_embedded() {
+    let mut message = "From: ann@example.com\r\nSubject: level 5\r\n\r\nlast\r\n".to_owned();
+    for level in (0..5).rev() {
+        message = format!(
+            "From: ann@example.com\r\nSubject: level {level}\r\n\
+             Content-Type: message/rfc822\r\nContent-Disposition: inline\r\n\
+             Content-Transfer-Encoding: base64\r\n\r\n{}",
+            base64(message.as_bytes())
+        );
+    }
+    let (message, stderr) = read("encoded.eml", message.as_bytes());
+    assert_eq!(stderr, "");
+    let mut at = &message;
+    for level in 1..=5 {
+        let record = &at["attachments"][0];
+        assert_eq!(record["method"], "embedded_message", "level {level}");
+        assert_eq!(record["inline"], true, "level {level}");
+        assert_eq!(record.get("file"), None, "level {level}");
+        at = &record["message"];
+        assert_eq!(at["subject"], format!("level {level}"));
+    }
+    assert_eq!(at["body"]["text"], "last\r\n");
+}
+
+/// The text body is the text parts joined in order, an attachment between them; each
+/// attachment part is a record in order, its filename, type and content ID from the part.
+#[test]
+fn text_parts_are_joined_and_attachments_listed_in_order() {
+    let dir = scratch("eml-ordered-attachments");
+    let path = built(
+        "ordered.eml",
+        b"From: ann@example.com\r\n\
+          Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+          --b\r\nContent-Type: text/plain\r\n\r\none\r\n\
+          --b\r\nContent-Type: application/octet-stream; name=\"a.bin\"\r\n\
+          Content-ID: <a@example.com>\r\nContent-Transfer-Encoding: base64\r\n\r\nAAEC\r\n\
+          --b\r\nContent-Type: text/plain\r\n\r\ntwo\r\n\
+          --b\r\nContent-Type: application/octet-stream\r\n\
+          Content-Disposition: attachment; filename=\"same\"\r\n\
+          Content-Transfer-Encoding: base64\r\n\r\nAAEC\r\n\
+          --b--\r\n",
+    );
+    let out = run(&[path.as_os_str(), "--attachments".as_ref(), dir.as_os_str()]);
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
+    assert_eq!(out.stderr, "");
+    let message = &out.lines()[1];
+    assert_eq!(message["body"]["text"], "one\ntwo");
+    let sha = "ae4b3280e56e2faf83f414a6e3dabe9d5fbe18976544c05fed121accb85b53fc";
+    assert_eq!(
+        message["attachments"],
+        json!([
+            {"file": format!("{sha}.bin"), "filename": "a.bin",
+             "mime_type": "application/octet-stream", "content_id": "a@example.com",
+             "inline": false, "method": "by_value", "size": 3},
+            {"file": sha, "filename": "same", "mime_type": "application/octet-stream",
+             "inline": false, "method": "by_value", "size": 3},
+        ])
+    );
+    assert_eq!(names(&dir), [sha.to_owned(), format!("{sha}.bin")]);
+}
+
+/// US-ASCII and ISO-8859-1, in parts and in encoded words, decode as windows-1252.
+#[test]
+fn latin1_and_ascii_decode_as_windows_1252() {
+    let (message, stderr) = read(
+        "latin1.eml",
+        b"From: ann@example.com\r\n\
+          Subject: =?US-ASCII?Q?=805?= =?ISO-8859-1?Q?caf=E9?=\r\n\
+          Content-Type: multipart/alternative; boundary=\"b\"\r\n\r\n\
+          --b\r\nContent-Type: text/plain; charset=ISO-8859-1\r\n\
+          Content-Transfer-Encoding: quoted-printable\r\n\r\ncaf=E9 =80 =9F\r\n\
+          --b\r\nContent-Type: text/html; charset=us-ascii\r\n\r\n<p>\x93caf\xe9\x94</p>\r\n\
+          --b--\r\n",
+    );
+    assert_eq!(stderr, "");
+    assert_eq!(message["subject"], "€5café");
+    assert_eq!(message["body"]["text"], "café € Ÿ");
+    assert_eq!(message["body"]["html"], "<p>\u{201c}café\u{201d}</p>");
+}
+
+/// A byte windows-1252 leaves undefined becomes U+FFFD, and malformed base64 is decoded as
+/// best it can be, each with one warning naming its record. An attachment's content is its
+/// bytes, so its charset, here an unknown one, is never decoded.
+#[test]
+fn lossy_decoding_gives_a_warning_naming_the_record() {
+    let (message, stderr) = read(
+        "lossy.eml",
+        b"From: ann@example.com\r\n\
+          Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+          --b\r\nContent-Type: text/plain; charset=iso-8859-1\r\n\r\nA\x81B\x8d\r\n\
+          --b\r\nContent-Type: application/octet-stream\r\n\
+          Content-Transfer-Encoding: base64\r\n\r\nAA*EC\r\n\
+          --b\r\nContent-Type: text/plain; charset=x-unknown\r\n\
+          Content-Disposition: attachment\r\n\r\nplain\r\n\
+          --b--\r\n",
+    );
+    assert_eq!(message["body"]["text"], "A\u{fffd}B\u{fffd}");
+    assert_eq!(message["attachments"][0]["size"], 3);
+    assert_eq!(
+        stderr,
+        "spike-ai-pipeline-mail: warning: message: \
+         the text body is not valid in its charset; decoded lossily\n\
+         spike-ai-pipeline-mail: warning: message, attachment 1: \
+         the attachment's content has a malformed transfer encoding; decoded lossily\n"
     );
 }
