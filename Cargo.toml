@@ -28,8 +28,9 @@ htmd = "0.5.6"
 # Compound File Binary (MIT): the container of a .msg, under the CLI's own MS-OXMSG reader
 # (src/msg.rs). It brings fnv, uuid and web-time.
 cfb = "0.16.0"
-# Stalwart's RFC 5322 and MIME parser: the reader of an .eml and of an mbox's messages.
-# full_encoding brings encoding_rs's multi-byte charsets, ISO-2022-JP and GB2312 among them.
+# Stalwart's RFC 5322 and MIME parser (Apache-2.0 OR MIT): the reader of an .eml and of an
+# mbox's messages (src/eml.rs, src/mbox.rs). It brings hashify and encodify; full_encoding
+# brings encoding_rs's multi-byte charsets, ISO-2022-JP and GB2312 among them.
 mail-parser = { version = "1.0.1", features = ["full_encoding"] }
 
 # The findings run (scripts/findings.sh, `mise run findings`): the check compiles it, never runs it.

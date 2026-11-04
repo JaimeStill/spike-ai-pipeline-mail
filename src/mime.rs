@@ -1,5 +1,5 @@
-//! The mapping from a MIME message, as mail-parser parses it, to the message model: the reader
-//! of an .eml and of each of an mbox's messages. Like the MAPI mapping, it returns its notes for
+//! The mapping from a MIME message, as mail-parser parses it, to the message model,
+//! shared by the .eml reader and the mbox reader. Like the MAPI mapping, it returns its notes for
 //! the caller to warn about with the record's place.
 //!
 //! Each field is the header's: the sender is the first From mailbox, the recipients To's, Cc's

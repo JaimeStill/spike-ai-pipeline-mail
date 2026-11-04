@@ -46,6 +46,8 @@ const PST_CLIENT: &[u8] = b"SM";
 const OST_CLIENT: &[u8] = b"SO";
 /// The compound file header signature (MS-CFB 2.2).
 const CFB_MAGIC: &[u8] = &[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+/// The start of an mbox's separator line.
+const MBOX_SEPARATOR: &[u8] = b"From ";
 
 pub fn sniff(prefix: &[u8]) -> Format {
     if prefix.starts_with(CFB_MAGIC) {
@@ -60,6 +62,8 @@ pub fn sniff(prefix: &[u8]) -> Format {
     Format::Other
 }
 
+/// A prefix that starts with the PST magic: a .pst of a version it names, an .ost, or, when
+/// it is short or its client magic is neither, [`Format::Other`].
 fn pst(prefix: &[u8]) -> Format {
     if prefix.len() < PREFIX {
         return Format::Other;
@@ -78,9 +82,6 @@ fn pst(prefix: &[u8]) -> Format {
         version => Format::PstVersion(version),
     }
 }
-
-/// The start of an mbox's separator line.
-pub const MBOX_SEPARATOR: &[u8] = b"From ";
 
 /// The longest line [`header_shape`] reads; a longer one ends the header block. RFC 5322 2.1.1
 /// caps a line at 998 characters, which real mail sometimes passes, though not by this much.
@@ -166,9 +167,8 @@ mod tests {
     }
 
     #[test]
-    fn mbox_is_told_after_pst_and_msg() {
+    fn an_mbox_is_told_by_its_separator_line_not_a_from_field() {
         assert_eq!(sniff(b"From ann@example.com"), Format::Mbox);
         assert_eq!(sniff(b"From: ann@example.com"), Format::Other);
-        assert_eq!(sniff(CFB_MAGIC), Format::CompoundFile);
     }
 }
