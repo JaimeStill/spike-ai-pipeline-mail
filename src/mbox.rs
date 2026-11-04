@@ -38,10 +38,7 @@ pub fn read(path: &Path, out: &mut Lines<impl Write>, files: &mut Files) -> Resu
     .map_err(Fault::Output)?;
     let parser = mime::parser();
     let mut buffers = MessageBuffers::new();
-    // A separator line with nothing after it is no message, and takes no ordinal.
-    let entries = MessageIterator::new(BufReader::new(file))
-        .filter(|entry| !matches!(entry, Ok(entry) if unseparated(entry.contents()).is_empty()));
-    for (ordinal, entry) in (1u32..).zip(entries) {
+    for (ordinal, entry) in (1u32..).zip(MessageIterator::new(BufReader::new(file))) {
         let place = format!("message {ordinal}");
         let entry = match entry {
             Ok(entry) => entry,
@@ -56,6 +53,11 @@ pub fn read(path: &Path, out: &mut Lines<impl Write>, files: &mut Files) -> Resu
             }
         };
         let contents = unseparated(entry.contents());
+        // A separator line with nothing after it is no message: it writes no line and no
+        // warning, but keeps its ordinal, so the messages after it keep theirs.
+        if contents.is_empty() {
+            continue;
+        }
         if !sniff::header_shape(contents).unwrap_or(false) {
             let reason = "it has no header block with a From or Date field".to_owned();
             skip(out, &place, ordinal, reason)?;

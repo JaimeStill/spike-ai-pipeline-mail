@@ -155,7 +155,7 @@ fn an_mbox_gives_its_messages_by_ordinal() {
     );
 }
 
-/// A separator line with nothing after it is no message: the store line alone.
+/// A file of separator lines alone has no messages: the store line alone.
 #[test]
 fn an_mbox_with_no_messages_gives_its_store_line_alone() {
     let mbox = built(
@@ -169,6 +169,45 @@ fn an_mbox_with_no_messages_gives_its_store_line_alone() {
     assert_eq!(lines.len(), 1);
     assert_eq!(lines[0]["line"], "store");
     assert_eq!(lines[0]["format"], "mbox");
+}
+
+/// An empty entry, a separator line with nothing after it, keeps its ordinal but writes no
+/// line, so the message after it keeps its own ordinal.
+#[test]
+fn an_empty_entry_keeps_its_ordinal() {
+    let mbox = built(
+        "empty-entry.mbox",
+        b"From ann@example.com Mon Jan 12 17:00:00 2026\n\
+          From: ann@example.com\n\
+          Subject: first\n\
+          \n\
+          body\n\
+          \n\
+          From MAILER-DAEMON Thu Jan  1 00:00:00 1970\n\
+          \n\
+          From cy@example.com Mon Jan 12 17:02:00 2026\n\
+          From: cy@example.com\n\
+          Subject: third\n\
+          \n\
+          body\n\
+          \n",
+    );
+    let out = run(&[&mbox]);
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
+    assert_eq!(out.stderr, "");
+    let summary: Vec<_> = out
+        .lines()
+        .iter()
+        .map(|line| json!([line["line"], line.get("id"), line.get("subject")]))
+        .collect();
+    assert_eq!(
+        summary,
+        [
+            json!(["store", null, null]),
+            json!(["message", 1, "first"]),
+            json!(["message", 3, "third"]),
+        ]
+    );
 }
 
 /// mboxo quotes only "From " lines, and is read as mboxrd: a body line that was ">From " to begin
