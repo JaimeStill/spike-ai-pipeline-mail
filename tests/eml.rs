@@ -596,13 +596,21 @@ fn nesting_stops_at_16_levels() {
     );
 }
 
-/// `bytes` in base64, by coreutils' base64, so the tests take no encoding crate.
+/// `bytes` in base64, by coreutils' base64, so the tests take no encoding crate. The bytes go
+/// through its standard input, so tests running side by side share no file.
 fn base64(bytes: &[u8]) -> String {
-    let path = built("base64.in", bytes);
-    let out = std::process::Command::new("base64")
-        .arg(&path)
-        .output()
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new("base64")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
         .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let input = bytes.to_owned();
+    let writer = std::thread::spawn(move || stdin.write_all(&input).unwrap());
+    let out = child.wait_with_output().unwrap();
+    writer.join().unwrap();
     assert!(out.status.success());
     String::from_utf8(out.stdout).unwrap().replace('\n', "\r\n")
 }
@@ -632,6 +640,44 @@ fn an_encoded_message_is_embedded() {
         assert_eq!(at["subject"], format!("level {level}"));
     }
     assert_eq!(at["body"]["text"], "last\r\n");
+}
+
+/// A transfer-encoded message/rfc822 part nests to 16 levels below the top as an unencoded one
+/// does; one deeper, which mail-parser leaves unparsed, is listed without its message with the
+/// same warning, naming its place.
+#[test]
+fn encoded_nesting_stops_at_16_levels() {
+    let mut message = "From: ann@example.com\r\nSubject: level 19\r\n\r\nlast\r\n".to_owned();
+    for level in (0..19).rev() {
+        message = format!(
+            "From: ann@example.com\r\nSubject: level {level}\r\n\
+             Content-Type: message/rfc822\r\n\
+             Content-Transfer-Encoding: base64\r\n\r\n{}",
+            base64(message.as_bytes())
+        );
+    }
+    let (message, stderr) = read("encoded-deep.eml", message.as_bytes());
+    let mut at = &message;
+    let mut place = "message".to_owned();
+    for level in 1..=16 {
+        let record = &at["attachments"][0];
+        assert_eq!(record["method"], "embedded_message", "level {level}");
+        at = &record["message"];
+        assert_eq!(at["subject"], format!("level {level}"));
+        place.push_str(", attachment 1, message");
+    }
+    let record = &at["attachments"][0];
+    assert_eq!(
+        record,
+        &json!({"mime_type": "message/rfc822", "inline": false, "method": "embedded_message"})
+    );
+    assert_eq!(
+        stderr,
+        format!(
+            "spike-ai-pipeline-mail: warning: {place}, attachment 1: \
+             an embedded message nested deeper than 16 messages; listed without it\n"
+        )
+    );
 }
 
 /// The text body is the text parts joined in order, an attachment between them; each

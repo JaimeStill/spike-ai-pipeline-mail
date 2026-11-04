@@ -63,8 +63,8 @@ v0.1.0.
 - In an mboxo, a body line that was `>From ` to begin with loses its `>`: every mbox is read as
   an mboxrd.
 - The five bytes windows-1252 leaves undefined, 0x81, 0x8D, 0x8F, 0x90, and 0x9D, decode as
-  U+FFFD, with a lossy-decoding warning; mail-parser decodes US-ASCII and ISO-8859-1 as
-  windows-1252.
+  U+FFFD; mail-parser decodes US-ASCII and ISO-8859-1 as windows-1252. In a body or attachment
+  part they give a lossy-decoding warning; in a header's encoded words they give none.
 
 ## [v0.1.0] - 2026-11-03
 

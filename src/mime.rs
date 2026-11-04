@@ -99,7 +99,7 @@ fn read(
             content,
             nested,
             notes: own,
-        } = match guarded(|| Ok(attachment(&part))) {
+        } = match guarded(|| Ok(attachment(&part, depth + 1 > DEPTH_MAX))) {
             Ok(read) => read,
             Err(failure) => {
                 notes.push((here, format!("skipped: {}", failure.reason)));
@@ -112,13 +112,7 @@ fn read(
             files.write(file, content)?;
         }
         match nested {
-            Some(_) if depth + 1 > DEPTH_MAX => notes.push((
-                here,
-                format!(
-                    "an embedded message nested deeper than {DEPTH_MAX} messages; \
-                     listed without it"
-                ),
-            )),
+            Some(_) if depth + 1 > DEPTH_MAX => notes.push((here, too_deep())),
             // An attachment inside it that can't be read has its warning; the embedded message
             // has no line to give it a skipped line after.
             Some(nested) => {
@@ -309,8 +303,14 @@ struct Part<'m> {
     notes: Vec<String>,
 }
 
-/// Reads one attachment part.
-fn attachment<'m>(part: &MessagePart<'m>) -> Part<'m> {
+/// The note for an embedded message below the depth limit, listed without its message.
+fn too_deep() -> String {
+    format!("an embedded message nested deeper than {DEPTH_MAX} messages; listed without it")
+}
+
+/// Reads one attachment part; `too_deep_here` says the part is below [`DEPTH_MAX`] messages,
+/// where the parser stops parsing a transfer-encoded message/rfc822 part.
+fn attachment<'m>(part: &MessagePart<'m>, too_deep_here: bool) -> Part<'m> {
     let mut notes = Vec::new();
     let mime_type = part.content_type().map(|content_type| {
         let ctype = content_type.ctype();
@@ -341,7 +341,13 @@ fn attachment<'m>(part: &MessagePart<'m>) -> Part<'m> {
     }
     if embedded {
         record.method = Some("embedded_message");
-        notes.push("the embedded message can't be parsed; listed without it".to_owned());
+        // The parser's encoded nesting counts encoded levels only, so it reaches its limit only
+        // where the depth is past it too: a part left unparsed there is unparsed for its depth.
+        notes.push(if too_deep_here {
+            too_deep()
+        } else {
+            "the embedded message can't be parsed; listed without it".to_owned()
+        });
         return Part {
             record,
             content: None,

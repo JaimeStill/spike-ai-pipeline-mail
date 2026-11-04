@@ -232,8 +232,9 @@ warning.
   message fields alone.
 - A string in a code page that can't be decoded is decoded lossily, with a warning.
 - mail-parser decodes US-ASCII and ISO-8859-1 as windows-1252, as WHATWG labels them, and the
-  five bytes windows-1252 leaves undefined, 0x81, 0x8D, 0x8F, 0x90, and 0x9D, as U+FFFD, with a
-  warning that the text is decoded lossily.
+  five bytes windows-1252 leaves undefined, 0x81, 0x8D, 0x8F, 0x90, and 0x9D, as U+FFFD. In a
+  body or attachment part they give a warning that the text is decoded lossily; in a header's
+  encoded words, such as a Subject's, they give none, as mail-parser reports no problems there.
 - An mbox is read as an mboxrd: a line quoted `>From `, `>>From `, and so on loses one `>`. An
   mboxo is read the same way, so a body line that was `>From ` to begin with loses its `>`.
 - An mbox message runs to the next line starting `From `: mboxcl's and mboxcl2's Content-Length is
