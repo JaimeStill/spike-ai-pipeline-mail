@@ -1,11 +1,15 @@
 //! .eml messages through the binary: the eight generated sources under
-//! tests/fixtures/generated/eml against their hand truth (truth.json), and test-built messages
+//! tests/fixtures/generated/eml against their hand truth (truth.json), the MIME group's
+//! hand-written sources under tests/fixtures/mime/eml against theirs, and test-built messages
 //! for what those don't carry.
 
 mod common;
 
 use common::{built, fixture, names, run, run_in, scratch, sha256};
 use serde_json::{Value, json};
+
+/// The MIME group's hand-written sources, under tests/fixtures/mime/eml.
+const MIME_SOURCES: &[&str] = &["09-threading.eml"];
 
 const SOURCES: &[&str] = &[
     "01-plain.eml",
@@ -26,11 +30,15 @@ const FIELDS: &[(&str, &str)] = &[
     ("message_id", "message_id"),
     ("in_reply_to", "in_reply_to"),
     ("references", "references"),
+    ("importance", "importance"),
+    ("sensitivity", "sensitivity"),
+    ("conversation_topic", "conversation_topic"),
+    ("conversation_index", "conversation_index"),
 ];
 
 /// The truth fields compared otherwise: each address with address type SMTP, the bodies, the
 /// attachments and embedded messages as attachment records. The charset is the source's label,
-/// no field of the model, and importance is read from headers this reader doesn't map yet.
+/// no field of the model.
 const MAPPED: &[&str] = &[
     "sender",
     "to",
@@ -40,11 +48,12 @@ const MAPPED: &[&str] = &[
     "attachments",
     "embedded",
     "charset",
-    "importance",
 ];
 
-fn truth() -> Value {
-    serde_json::from_slice(&std::fs::read(fixture("generated/truth.json")).unwrap()).unwrap()
+/// A group's truth, by its directory under tests/fixtures.
+fn truth(group: &str) -> Value {
+    serde_json::from_slice(&std::fs::read(fixture(&format!("{group}/truth.json"))).unwrap())
+        .unwrap()
 }
 
 /// A truth address as the model writes it: with address type SMTP.
@@ -182,13 +191,14 @@ fn assert_message(got: &Value, truth: &Value, source: &str, nested: bool) {
     }
 }
 
-/// Each generated .eml is a store line and one message line that matches its truth in full,
-/// without a warning.
-#[test]
-fn eml_files_match_the_truth() {
-    let truth = truth();
-    for source in SOURCES {
-        let path = fixture(&format!("generated/eml/{source}"));
+/// Each .eml of a group is a store line and one message line that matches the group's truth in
+/// full, without a warning.
+fn assert_group_matches_its_truth(group: &str, sources: &[&str]) {
+    let truth = truth(group);
+    let listed: Vec<&String> = truth["messages"].as_object().unwrap().keys().collect();
+    assert_eq!(listed, sources, "{group}: every source has its truth");
+    for source in sources {
+        let path = fixture(&format!("{group}/eml/{source}"));
         let out = run(&[&path]);
         assert_eq!(out.code, Some(0), "{source}: {}", out.stderr);
         assert_eq!(out.stderr, "", "{source}");
@@ -207,6 +217,53 @@ fn eml_files_match_the_truth() {
             "{source}: transport_headers"
         );
     }
+}
+
+/// Each generated .eml matches truth.json in full.
+#[test]
+fn eml_files_match_the_truth() {
+    assert_group_matches_its_truth("generated", SOURCES);
+}
+
+/// The MIME group's hand-written .eml matches its own truth in full: the threading and
+/// priority headers, and the body lines starting "From " and ">From " as they are.
+#[test]
+fn the_mime_group_matches_its_truth() {
+    assert_group_matches_its_truth("mime", MIME_SOURCES);
+}
+
+/// Every file of the MIME group has the SHA-256 its list records, and every committed file is
+/// listed, but the list itself.
+#[test]
+fn the_mime_group_matches_its_sha256_list() {
+    let list: Value =
+        serde_json::from_slice(&std::fs::read(fixture("mime/sha256.json")).unwrap()).unwrap();
+    let mut listed = Vec::new();
+    for entry in list.as_array().unwrap() {
+        let file = entry["file"].as_str().unwrap();
+        assert_eq!(
+            Some(sha256(&fixture(&format!("mime/{file}"))).as_str()),
+            entry["sha256"].as_str(),
+            "{file}"
+        );
+        listed.push(file.to_owned());
+    }
+    listed.sort_unstable();
+    let mut committed = Vec::new();
+    let mut dirs = vec![String::new()];
+    while let Some(dir) = dirs.pop() {
+        for entry in std::fs::read_dir(fixture(&format!("mime/{dir}"))).unwrap() {
+            let entry = entry.unwrap();
+            let name = format!("{dir}{}", entry.file_name().into_string().unwrap());
+            if entry.file_type().unwrap().is_dir() {
+                dirs.push(format!("{name}/"));
+            } else if name != "sha256.json" {
+                committed.push(name);
+            }
+        }
+    }
+    committed.sort_unstable();
+    assert_eq!(listed, committed, "the list names every file of the group");
 }
 
 /// The Markdown body is made from the HTML, keeping its cid: image, else from the text.
@@ -273,6 +330,127 @@ fn read(name: &str, bytes: &[u8]) -> (Value, String) {
     let lines = out.lines();
     assert_eq!(lines.len(), 2);
     (lines[1].clone(), out.stderr)
+}
+
+/// A test-built .eml of these header lines and a one-line body.
+fn with_headers(name: &str, headers: &str) -> (Value, String) {
+    read(
+        name,
+        format!("From: ann@example.com\r\n{headers}\r\nbody\r\n").as_bytes(),
+    )
+}
+
+/// The warning line for a record's note.
+fn warning(note: &str) -> String {
+    format!("spike-ai-pipeline-mail: warning: message: {note}\n")
+}
+
+/// Importance gives the importance, whatever its case, before X-Priority; without it,
+/// X-Priority's leading number gives its band.
+#[test]
+fn importance_comes_from_importance_else_x_priority() {
+    let cases = [
+        ("Importance: Low\r\nX-Priority: 1\r\n", "low"),
+        (
+            "X-Priority: 1 (Highest)\r\nImportance: normal\r\n",
+            "normal",
+        ),
+        ("Importance: HIGH\r\n", "high"),
+        ("X-Priority: 1 (Highest)\r\n", "high"),
+        ("X-Priority: 2\r\n", "high"),
+        ("X-Priority: 3 (Normal)\r\n", "normal"),
+        ("X-Priority: 4\r\n", "low"),
+        ("X-Priority: 5 (Lowest)\r\n", "low"),
+    ];
+    for (headers, importance) in cases {
+        let (message, stderr) = with_headers("importance.eml", headers);
+        assert_eq!(message["importance"], importance, "{headers:?}");
+        assert_eq!(stderr, "", "{headers:?}");
+    }
+}
+
+/// Sensitivity's three values, whatever their case, in schema "1"'s words.
+#[test]
+fn sensitivity_values_map_to_the_schemas() {
+    let cases = [
+        ("Personal", "personal"),
+        ("private", "private"),
+        ("Company-Confidential", "confidential"),
+    ];
+    for (value, sensitivity) in cases {
+        let (message, stderr) =
+            with_headers("sensitivity.eml", &format!("Sensitivity: {value}\r\n"));
+        assert_eq!(message["sensitivity"], sensitivity, "{value}");
+        assert_eq!(stderr, "", "{value}");
+    }
+}
+
+/// A value that maps to none of the model's is left out, with a warning naming the header; an
+/// unknown Importance falls back to X-Priority.
+#[test]
+fn unknown_values_are_left_out_with_a_warning() {
+    let cases = [
+        (
+            "Importance: urgent\r\n",
+            None,
+            "the Importance header has unknown value \"urgent\"; left out",
+        ),
+        (
+            "Importance: urgent\r\nX-Priority: 5\r\n",
+            Some("low"),
+            "the Importance header has unknown value \"urgent\"; left out",
+        ),
+        (
+            "X-Priority: 6\r\n",
+            None,
+            "the X-Priority header has unknown value \"6\"; left out",
+        ),
+        (
+            "X-Priority: Highest\r\n",
+            None,
+            "the X-Priority header has unknown value \"Highest\"; left out",
+        ),
+        (
+            "X-Priority: 10\r\n",
+            None,
+            "the X-Priority header has unknown value \"10\"; left out",
+        ),
+    ];
+    for (headers, importance, note) in cases {
+        let (message, stderr) = with_headers("unknown.eml", headers);
+        assert_eq!(
+            message.get("importance").and_then(Value::as_str),
+            importance,
+            "{headers:?}"
+        );
+        assert_eq!(stderr, warning(note), "{headers:?}");
+    }
+    let (message, stderr) = with_headers("unknown.eml", "Sensitivity: Normal\r\n");
+    assert_eq!(message.get("sensitivity"), None);
+    assert_eq!(
+        stderr,
+        warning("the Sensitivity header has unknown value \"Normal\"; left out")
+    );
+}
+
+/// Thread-Index is base64-decoded into the conversation index, in lowercase hex; one that
+/// isn't valid base64 is left out, with a warning. Thread-Topic is decoded from its encoded
+/// words.
+#[test]
+fn thread_index_and_topic_fill_the_conversation_fields() {
+    let (message, stderr) = with_headers(
+        "thread.eml",
+        "Thread-Index: AQL/\r\nThread-Topic: =?ISO-8859-1?Q?caf=E9?=\r\n",
+    );
+    assert_eq!(stderr, "");
+    assert_eq!(message["conversation_index"], "0102ff");
+    assert_eq!(message["conversation_topic"], "café");
+    let (message, stderr) = with_headers("thread.eml", "Thread-Index: not base64!\r\n");
+    assert_eq!(message.get("conversation_index"), None);
+    assert_eq!(
+        stderr,
+        warning("the Thread-Index header is not valid base64; left out")
+    );
 }
 
 /// Groups are flattened into their members, in order, and an empty group gives nothing.

@@ -10,6 +10,11 @@
 //! A MIME message has no message class, so none is written. Where a header appears more than
 //! once, the last is read, as mail-parser's own getters read it.
 //!
+//! The threading and priority headers fill the fields a .pst or a .msg fills from MAPI:
+//! Thread-Topic the conversation topic, Thread-Index the conversation index, Importance (else
+//! X-Priority) the importance and Sensitivity the sensitivity, in schema "1"'s words. A value
+//! that doesn't map is left out, with a note.
+//!
 //! The bodies are mail-parser's body lists (RFC 8621's textBody and htmlBody): the text body is
 //! the text parts of the one, and the HTML body the HTML parts of the other, each decoded from
 //! its transfer encoding and charset and joined in order; the Markdown body is derived as for a
@@ -25,8 +30,8 @@
 use std::borrow::Cow;
 
 use mail_parser::{
-    AddressList, DateTime, DecodeProblems, Header, HeaderName, MessageParser, MessagePart,
-    MessageRef, PartKind, PartRole,
+    AddressList, DateTime, DecodeProblems, Encoding, Header, HeaderForm, HeaderName, Headers,
+    MessageParser, MessagePart, MessageRef, PartKind, PartRole,
 };
 
 use crate::files::Files;
@@ -50,9 +55,12 @@ pub struct Read {
 /// The parser both readers parse with: mail-parser's own limits, but transfer-encoded
 /// message/rfc822 parts parsed to [`DEPTH_MAX`] levels, as unencoded ones are, where its default
 /// stops at 3. Each level decodes from its container, which base64 shrinks, so the memory a
-/// message takes stays bounded by its size.
+/// message takes stays bounded by its size. Thread-Topic is parsed as unstructured text, its
+/// encoded words decoded as Subject's are, where mail-parser keeps it raw.
 pub fn parser() -> MessageParser {
-    MessageParser::new().max_encoded_nesting(DEPTH_MAX)
+    MessageParser::new()
+        .max_encoded_nesting(DEPTH_MAX)
+        .header(HeaderName::ThreadTopic, HeaderForm::Text)
 }
 
 /// Maps one parsed message to a message line, its attachments' contents written through
@@ -154,8 +162,93 @@ fn headers(parsed: &MessageRef<'_>, notes: &mut Vec<String>) -> Message {
         message_id: stored(headers.get(HeaderName::MessageId), notes),
         in_reply_to: stored(headers.get(HeaderName::InReplyTo), notes),
         references: stored(headers.get(HeaderName::References), notes),
+        importance: importance(&headers, notes),
+        sensitivity: sensitivity(headers.get(HeaderName::Sensitivity), notes),
+        conversation_topic: headers
+            .get(HeaderName::ThreadTopic)
+            .and_then(|header| header.value().as_text())
+            .map(str::trim)
+            .filter(|topic| !topic.is_empty())
+            .map(str::to_owned),
+        conversation_index: thread_index(headers.get(HeaderName::ThreadIndex), notes),
         ..Message::default()
     }
+}
+
+/// The importance: Importance's low, normal or high, else X-Priority's band, 1 to 2 high,
+/// 3 normal and 4 to 5 low, read from its leading number, as in "1 (Highest)". A value of
+/// either that isn't one of these is left out, with a note, and an unknown Importance falls
+/// back to X-Priority.
+fn importance(headers: &Headers<'_>, notes: &mut Vec<String>) -> Option<&'static str> {
+    let header = headers.get(HeaderName::Importance);
+    let named = header.and_then(|header| {
+        let value = stored(Some(header), notes)?;
+        let name = ["low", "normal", "high"]
+            .into_iter()
+            .find(|name| value.eq_ignore_ascii_case(name));
+        if name.is_none() {
+            notes.push(unknown(&header, &value));
+        }
+        name
+    });
+    named.or_else(|| {
+        let header = headers.get(HeaderName::XPriority)?;
+        let value = stored(Some(header), notes)?;
+        let digits = value.bytes().take_while(u8::is_ascii_digit).count();
+        let band = match value[..digits].parse::<u32>() {
+            Ok(1 | 2) => Some("high"),
+            Ok(3) => Some("normal"),
+            Ok(4 | 5) => Some("low"),
+            _ => None,
+        };
+        if band.is_none() {
+            notes.push(unknown(&header, &value));
+        }
+        band
+    })
+}
+
+/// The sensitivity: Sensitivity's Personal, Private and Company-Confidential (RFC 2156), as
+/// personal, private and confidential. Any other value is left out, with a note.
+fn sensitivity(header: Option<Header<'_>>, notes: &mut Vec<String>) -> Option<&'static str> {
+    let header = header?;
+    let value = stored(Some(header), notes)?;
+    let name = [
+        ("personal", "personal"),
+        ("private", "private"),
+        ("company-confidential", "confidential"),
+    ]
+    .into_iter()
+    .find(|(stored, _)| value.eq_ignore_ascii_case(stored))
+    .map(|(_, name)| name);
+    if name.is_none() {
+        notes.push(unknown(&header, &value));
+    }
+    name
+}
+
+/// The note for a header whose value isn't one the model names.
+fn unknown(header: &Header<'_>, value: &str) -> String {
+    format!(
+        "the {} header has unknown value {value:?}; left out",
+        header.raw_name()
+    )
+}
+
+/// The conversation index: Thread-Index base64-decoded, in lowercase hex, as a .pst or a .msg
+/// writes PidTagConversationIndex. One that isn't valid base64 is left out, with a note.
+fn thread_index(header: Option<Header<'_>>, notes: &mut Vec<String>) -> Option<String> {
+    let header = header?;
+    let value = stored(Some(header), notes)?;
+    let (bytes, malformed) = Encoding::Base64.decode_checked(value.as_bytes());
+    if malformed || bytes.is_empty() {
+        notes.push(format!(
+            "the {} header is not valid base64; left out",
+            header.raw_name()
+        ));
+        return None;
+    }
+    Some(mapping::hex(&bytes))
 }
 
 /// The text and HTML bodies, and the Markdown derived from them. A body list's parts of the

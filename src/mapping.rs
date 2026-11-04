@@ -257,7 +257,8 @@ fn binary(bag: &Bag, id: u16) -> Option<&[u8]> {
     }
 }
 
-fn hex(bytes: &[u8]) -> String {
+/// Bytes in lowercase hex, as a binary property is written.
+pub fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
