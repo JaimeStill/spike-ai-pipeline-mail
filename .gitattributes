@@ -3,3 +3,6 @@
 *.eml -text
 # The mboxrd holds those sources byte for byte, CRLF and all, and the check compares it so.
 *.mboxrd -text
+# mime4j's mbox.rlug and its splits, and its NOTICE's CRLF, are kept as upstream wrote them, so
+# their SHA-256s hold.
+tests/fixtures/mime/rlug/** -text

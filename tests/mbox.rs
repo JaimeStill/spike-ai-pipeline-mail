@@ -1,14 +1,16 @@
 //! mbox files through the binary: a store line, then each message in file order, its id its
 //! ordinal, with a skipped line in place of a message that can't be read. The MIME group's
 //! mboxrd, tests/fixtures/mime/nine.mboxrd, is rebuilt by scripts/mboxrd.sh and compared byte
-//! for byte, and each of its messages is compared with the CLI's read of its source .eml.
+//! for byte, and each of its messages is compared with the CLI's read of its source .eml. Apache
+//! James mime4j's mbox.rlug, under tests/fixtures/mime/rlug/, is compared with its five expected
+//! splits the same way.
 
 mod common;
 
 use std::path::PathBuf;
 use std::process::Command;
 
-use common::{built, fixture, run, scratch};
+use common::{built, fixture, run, scratch, sha256};
 use serde_json::{Value, json};
 
 /// The mboxrd's sources, in its order, under tests/fixtures.
@@ -22,6 +24,16 @@ const SOURCES: &[&str] = &[
     "generated/eml/07-html-only-bcc.eml",
     "generated/eml/08-forward-attached-message.eml",
     "mime/eml/09-threading.eml",
+];
+
+/// mime4j's mbox.rlug and its expected splits, in the MIME group.
+const RLUG: &[&str] = &[
+    "rlug/mbox.rlug",
+    "rlug/mbox.rlug-0",
+    "rlug/mbox.rlug-1",
+    "rlug/mbox.rlug-2",
+    "rlug/mbox.rlug-3",
+    "rlug/mbox.rlug-4",
 ];
 
 /// The committed mboxrd.
@@ -261,4 +273,71 @@ fn an_mboxcl_content_length_is_ignored() {
         "spike-ai-pipeline-mail: warning: message 2: \
          skipped: it has no header block with a From or Date field\n"
     );
+}
+
+/// mime4j's mbox.rlug gives five messages, ids 1 to 5, each the CLI's read of its expected split
+/// as an .eml, every field but the id alike.
+///
+/// Each split is exactly the bytes between two separator lines, so it ends with the blank line
+/// before the next separator, or the file's last line. RFC 4155 and mboxrd give that blank line
+/// to the separator, and the reader drops it; mime4j keeps it in the message. So each split is
+/// read without its final line ending, and that line ending is checked to be "\n" alone, so the
+/// comparison can't hide any other difference.
+#[test]
+fn mbox_rlug_gives_its_splits_by_ordinal() {
+    let out = run(&[fixture("mime/rlug/mbox.rlug")]);
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
+    assert_eq!(out.stderr, "");
+    let lines = out.lines();
+    assert_eq!(lines[0]["format"], "mbox");
+    let (messages, ids) = without_ids(&lines);
+    assert_eq!(ids, (1..=5).map(Value::from).collect::<Vec<_>>());
+    let mut expected = Vec::new();
+    for split in &RLUG[1..] {
+        let bytes = std::fs::read(fixture(&format!("mime/{split}"))).unwrap();
+        let message = bytes
+            .strip_suffix(b"\n")
+            .unwrap_or_else(|| panic!("{split} ends with a line ending"));
+        assert!(message.ends_with(b"\n"), "{split} ends with a blank line");
+        let name = split.rsplit('/').next().unwrap();
+        let out = run(&[built(&format!("{name}.eml"), message)]);
+        assert_eq!(out.code, Some(0), "{split}: {}", out.stderr);
+        assert_eq!(out.stderr, "", "{split}");
+        let lines = out.lines();
+        assert_eq!(lines.len(), 2, "{split}: one message line");
+        expected.extend(without_ids(&lines).0);
+    }
+    assert_eq!(messages, expected);
+}
+
+/// Every committed mime4j file has a sources entry whose SHA-256 matches it, and the license
+/// notices it names are committed.
+#[test]
+fn every_rlug_file_has_a_matching_sources_entry() {
+    let sources: Value =
+        serde_json::from_slice(&std::fs::read(fixture("mime/sources.json")).unwrap()).unwrap();
+    let entries = sources.as_array().unwrap();
+    let mut listed: Vec<&str> = entries
+        .iter()
+        .map(|e| e["file"].as_str().unwrap())
+        .collect();
+    listed.sort_unstable();
+    let mut files = RLUG.to_vec();
+    files.sort_unstable();
+    assert_eq!(listed, files);
+    for entry in entries {
+        for field in ["repository", "commit", "path", "license", "sha256"] {
+            assert!(entry[field].is_string(), "{}: {field}", entry["file"]);
+        }
+        let path = fixture(&format!("mime/{}", entry["file"].as_str().unwrap()));
+        assert_eq!(
+            Some(sha256(&path).as_str()),
+            entry["sha256"].as_str(),
+            "{}",
+            path.display()
+        );
+    }
+    for notice in ["rlug/LICENSE", "rlug/NOTICE"] {
+        assert!(fixture(&format!("mime/{notice}")).is_file(), "{notice}");
+    }
 }
