@@ -10,14 +10,21 @@
 # usage: scripts/mboxrd.sh [output]
 #   output  the file written, tests/fixtures/mime/nine.mboxrd by default
 set -euo pipefail
-cd "$(dirname "$0")/.."
 export LC_ALL=C
 
 if [ $# -gt 1 ]; then
 	echo "usage: scripts/mboxrd.sh [output]" >&2
 	exit 2
 fi
-output=${1:-tests/fixtures/mime/nine.mboxrd}
+# A relative output is the caller's, so it is made absolute before the cd to the root.
+output=tests/fixtures/mime/nine.mboxrd
+if [ $# -eq 1 ]; then
+	case $1 in
+	/*) output=$1 ;;
+	*) output=$PWD/$1 ;;
+	esac
+fi
+cd "$(dirname "$0")/.."
 
 # The sources by file name, wherever each lives: the names start with their ordinal.
 mapfile -t sources < <(

@@ -3,8 +3,8 @@
 # check: the fields the CLI recovers per field kind against the committed fixtures' truth (the
 # .pst, .msg and .eml against their hand truth, and the MIME group's mboxes against their
 # sources), and its time and peak memory on every committed .pst, on plaso's 59 MB store, and on
-# the scale store as a .pst and as an mboxrd, each with and without --attachments. Run it through `mise run findings`, which passes its
-# arguments here:
+# the scale store as a .pst and as an mboxrd, each with and without --attachments. Run it
+# through `mise run findings`, which passes its arguments here:
 #
 #   mise run findings                     keeps nothing: the results go to
 #                                         .state/findings/results.json, overwritten each run, and
