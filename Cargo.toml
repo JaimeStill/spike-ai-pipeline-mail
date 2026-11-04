@@ -1,9 +1,9 @@
 [package]
 name = "spike-ai-pipeline-mail"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "Apache-2.0"
-description = "The mail CLI of spike-ai-pipeline: Outlook .pst stores and .msg messages to a JSON model"
+description = "The mail CLI of spike-ai-pipeline: Outlook .pst stores, .msg messages, .eml messages and mbox files to a JSON model"
 repository = "https://github.com/JaimeStill/spike-ai-pipeline-mail"
 publish = false
 
