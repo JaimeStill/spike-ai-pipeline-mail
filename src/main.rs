@@ -37,7 +37,7 @@ use sniff::Format;
 
 const NAME: &str = "spike-ai-pipeline-mail";
 
-const USAGE: &str = "usage: spike-ai-pipeline-mail [--attachments <dir>] <input>
+const USAGE: &str = "usage: spike-ai-pipeline-mail [--attachments <dir>] [--after <id>] <input>
        spike-ai-pipeline-mail --version";
 
 /// Why a run stopped short of exit 0.
@@ -63,6 +63,8 @@ enum Command {
 struct Args {
     input: PathBuf,
     attachments: Option<PathBuf>,
+    /// `--after <id>`: the message a .pst's or an mbox's read resumes after.
+    after: Option<u32>,
 }
 
 fn main() -> ExitCode {
@@ -108,7 +110,7 @@ fn run(args: &[OsString]) -> Result<(), Fault> {
     let mut out = Lines::new(BufWriter::new(io::stdout().lock()));
     let mut files = Files::new(args.attachments);
     match sniff::sniff(&prefix) {
-        Format::Pst(encoding) => pst::read(path, encoding, &mut out, &mut files)?,
+        Format::Pst(encoding) => pst::read(path, encoding, args.after, &mut out, &mut files)?,
         Format::Ost => {
             return Err(Fault::Refused(format!(
                 "{input}: an .ost, the offline cache of a server mailbox, is not read; \
@@ -121,8 +123,11 @@ fn run(args: &[OsString]) -> Result<(), Fault> {
                  only versions 14 and 15 (ANSI) and 23 (Unicode) are"
             )));
         }
-        Format::CompoundFile => msg::read(path, &mut out, &mut files)?,
-        Format::Mbox => mbox::read(path, &mut out, &mut files)?,
+        Format::CompoundFile => {
+            single(args.after, &input, "a .msg")?;
+            msg::read(path, &mut out, &mut files)?;
+        }
+        Format::Mbox => mbox::read(path, args.after, &mut out, &mut files)?,
         Format::Other => {
             let shaped = File::open(path)
                 .and_then(|file| sniff::header_shape(BufReader::new(file)))
@@ -132,14 +137,27 @@ fn run(args: &[OsString]) -> Result<(), Fault> {
                     "{input}: neither a .pst, a .msg, an .eml nor an mbox"
                 )));
             }
+            single(args.after, &input, "an .eml")?;
             eml::read(path, &mut out, &mut files)?;
         }
     }
     out.flush().map_err(Fault::Output)
 }
 
+/// Refuses `--after` for an input that is a single message, `kind`, as a usage error: there is no
+/// message to resume after. The input has been sniffed first, so a missing or foreign input is
+/// still refused as such.
+fn single(after: Option<u32>, input: &impl std::fmt::Display, kind: &str) -> Result<(), Fault> {
+    match after {
+        Some(_) => Err(Fault::Usage(format!(
+            "--after resumes a .pst or an mbox; {input} is {kind}, a single message"
+        ))),
+        None => Ok(()),
+    }
+}
+
 /// Parses the arguments by hand: `--version` alone, or one input and an optional
-/// `--attachments <dir>`, in any order.
+/// `--attachments <dir>` and `--after <id>`, in any order.
 fn parse(args: &[OsString]) -> Result<Command, Fault> {
     if let [flag] = args
         && flag == "--version"
@@ -149,6 +167,7 @@ fn parse(args: &[OsString]) -> Result<Command, Fault> {
     let usage = |reason: &str| Err(Fault::Usage(reason.to_owned()));
     let mut input = None;
     let mut attachments = None;
+    let mut after = None;
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
         match arg.to_str() {
@@ -158,6 +177,20 @@ fn parse(args: &[OsString]) -> Result<Command, Fault> {
                 };
                 if attachments.replace(PathBuf::from(dir)).is_some() {
                     return usage("--attachments is given more than once");
+                }
+            }
+            Some("--after") => {
+                let Some(id) = rest.next().filter(|id| !id.is_empty()) else {
+                    return usage("--after needs a message id");
+                };
+                let Some(id) = message_id(id) else {
+                    return usage(&format!(
+                        "--after {} is not a message id, a whole number from 1",
+                        id.to_string_lossy()
+                    ));
+                };
+                if after.replace(id).is_some() {
+                    return usage("--after is given more than once");
                 }
             }
             Some("--version") => return usage("--version takes no other arguments"),
@@ -183,7 +216,22 @@ fn parse(args: &[OsString]) -> Result<Command, Fault> {
             dir.display()
         ));
     }
-    Ok(Command::Read(Args { input, attachments }))
+    Ok(Command::Read(Args {
+        input,
+        attachments,
+        after,
+    }))
+}
+
+/// `--after`'s id: decimal digits alone, no sign, naming a u32 from 1. A .pst's node ids and an
+/// mbox's ordinals both start at 1, so 0 names no message and is a usage error, like an id that
+/// isn't a number, rather than "resume from the start".
+fn message_id(arg: &OsString) -> Option<u32> {
+    let digits = arg.to_str()?;
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    digits.parse().ok().filter(|id| *id != 0)
 }
 
 /// Writes one warning line: "spike-ai-pipeline-mail: warning: <where>: <what>".

@@ -16,6 +16,16 @@
 //! - a panic while outlook-pst holds its file's mutex poisons the mutex, and every later read
 //!   fails with "Failed to lock PST file". After a panic the walk reopens the store, so the
 //!   records after it are still read.
+//!
+//! With `--after <id>` the walk resumes after the message whose node id is `id`: every folder
+//! line, and every skipped line of a folder or a folder's table, is still written, since a
+//! consumer places messages by their folders, but a message's line, and the skipped lines of
+//! the message and its attachments, are written only for the messages after the cursor's, in
+//! the whole read's order. A message at or before the cursor is passed over by its node id in
+//! its folder's contents table and never opened, so none of its properties, recipients,
+//! attachments or warnings are read: [`Walk::message`] returns before its read. Before any
+//! output, the folders are walked once for the cursor's node id in their contents tables, and an
+//! id no folder holds is refused.
 
 use std::fs::File;
 use std::io::{self, Write};
@@ -43,11 +53,13 @@ use crate::{Fault, mapping, model, warn, warn_all};
 /// PidTagAttachMethod's afEmbeddedMessage (MS-OXCMSG 2.2.2.9).
 const AF_EMBEDDED_MESSAGE: i64 = 5;
 
-/// Reads the store at `path`, whose header names `encoding`, writes its lines to `out`, and
-/// its attachments' contents through `files`.
+/// Reads the store at `path`, whose header names `encoding`, writes its lines to `out`, those of
+/// its messages after the message with node id `after` when it is given, and its attachments'
+/// contents through `files`.
 pub fn read(
     path: &Path,
     encoding: Encoding,
+    after: Option<u32>,
     out: &mut Lines<impl Write>,
     files: &mut Files,
 ) -> Result<(), Fault> {
@@ -59,31 +71,40 @@ pub fn read(
     .map_err(|failure| {
         Fault::Refused(format!("the IPM subtree can't be read: {}", failure.reason))
     })?;
-    files.create()?;
-
     let props = bag(pst.store().properties().iter());
     let code_page = store_code_page(&props);
-    let (display_name, notes) = mapping::store_name(&props, code_page);
-    warn_all("store", notes);
-    out.write(&model::Store {
-        line: "store",
-        schema: model::SCHEMA,
-        format: "pst",
-        encoding: Some(encoding.name()),
-        password: Some(integer(&props, tag::PST_PASSWORD).is_some_and(|crc| crc != 0)),
-        display_name,
-    })
-    .map_err(Fault::Output)?;
-
     let mut walk = Walk {
         path: path.to_path_buf(),
         encoding,
         pst,
         reopened: 0,
         code_page,
+        after,
         out,
         files,
     };
+    if let Some(after) = after
+        && !walk.holds(&root, after)
+    {
+        return Err(Fault::Refused(format!(
+            "{}: --after {after}: no message in the store has that node id",
+            path.display()
+        )));
+    }
+    walk.files.create()?;
+
+    let (display_name, notes) = mapping::store_name(&props, code_page);
+    warn_all("store", notes);
+    walk.out
+        .write(&model::Store {
+            line: "store",
+            schema: model::SCHEMA,
+            format: "pst",
+            encoding: Some(encoding.name()),
+            password: Some(integer(&props, tag::PST_PASSWORD).is_some_and(|crc| crc != 0)),
+            display_name,
+        })
+        .map_err(Fault::Output)?;
     walk.folder(root, None, Vec::new())
 }
 
@@ -322,6 +343,9 @@ struct Walk<'a, W: Write> {
     /// last reopen holds the poisoned store, so it is opened again before its next attachment.
     reopened: u32,
     code_page: u16,
+    /// The node id of the message the walk resumes after, until the walk passes it; None once
+    /// it has, or for a whole read.
+    after: Option<u32>,
     out: &'a mut Lines<W>,
     files: &'a mut Files,
 }
@@ -384,9 +408,33 @@ impl<W: Write> Walk<'_, W> {
         Ok(())
     }
 
+    /// Whether `data`'s folder or a folder below it holds message `id` in its contents table,
+    /// read the way [`Walk::folder`] reads them, depth-first, stopping at the first that does.
+    /// A subfolder that can't be read is passed over here and skipped, with its warning, by
+    /// the walk itself.
+    fn holds(&mut self, data: &FolderData, id: u32) -> bool {
+        if data.messages.contains(&id) {
+            return true;
+        }
+        data.subfolders.iter().any(|&sub| {
+            let read = self.read(|pst| {
+                let entry_id = pst.store().properties().make_entry_id(NodeId::from(sub))?;
+                read_folder(pst.store(), &entry_id)
+            });
+            read.is_ok_and(|sub| self.holds(&sub, id))
+        })
+    }
+
     /// Writes one message's line, its attachments' files before it, and after it a skipped line
-    /// for each attachment that couldn't be read.
+    /// for each attachment that couldn't be read. Until the walk passes the `--after` cursor's
+    /// message, a message is passed over unopened.
     fn message(&mut self, folder: u32, id: u32, place: &str) -> Result<(), Fault> {
+        if let Some(after) = self.after {
+            if id == after {
+                self.after = None;
+            }
+            return Ok(());
+        }
         let place = format!("{place}, message {id}");
         let data = match self.read(|pst| read_message(pst, id)) {
             Ok(data) => data,

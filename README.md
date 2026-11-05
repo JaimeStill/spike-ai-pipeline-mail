@@ -20,7 +20,7 @@ answer are in the root repository's README.
 ## Usage
 
 ```sh
-spike-ai-pipeline-mail [--attachments <dir>] <input>
+spike-ai-pipeline-mail [--attachments <dir>] [--after <id>] <input>
 spike-ai-pipeline-mail --version
 ```
 
@@ -36,12 +36,26 @@ With `--attachments <dir>`, each distinct attachment content is written once int
 created if missing, as stored, before the line of the message it belongs to. Without it nothing is
 written to disk.
 
+With `--after <id>`, a read of a `.pst` or an mbox resumes after the message whose `id` is given:
+in a `.pst` its node id, in an mbox its 1-based ordinal. The resumed read is the tail of the whole
+read, byte for byte: the store line, every folder line, and every `skipped` line of a folder or of
+a folder's table, all as the whole read writes them, since a consumer places messages by their
+folders; and of the messages, only the lines after the given message's, a message line and the
+`skipped` lines of a message and of its attachments, in the whole read's order. The messages up to
+and including the given one are passed over unread: a `.pst`'s by their node ids in their
+folders' contents tables, never opened; an mbox's by scanning its separator lines from the start
+of the file, never parsed. Neither writes their warnings or their attachments' files. The id is
+decimal digits naming a whole number from 1; `0`, a sign, or anything else is a usage error, as
+is `--after` with a `.msg` or an `.eml`, a single message. An id that names no message is refused:
+in a `.pst`, one no folder's contents table holds, a folder's node id among them; in an mbox, an
+ordinal past its last, a separator line with nothing after it counted.
+
 | Exit code | Meaning |
 | --- | --- |
 | 0 | Read, even when records were skipped. |
 | 1 | stdout, or an attachment's content, couldn't be written. |
-| 2 | A usage error; usage goes to stderr. |
-| 3 | Refused, before any output: the input is missing or unreadable; none of the four formats (`neither a .pst, a .msg, an .eml nor an mbox`); an `.ost`; a PST version outlook-pst doesn't read (it reads 14 and 15, ANSI, and 23, Unicode); a store whose header, root, or IPM subtree can't be read; a compound file that isn't an MS-OXMSG message, or whose top-level properties can't be read; or an `.eml` of 4 GiB or more, or one mail-parser can't parse. |
+| 2 | A usage error; usage goes to stderr. `--after` with a `.msg` or an `.eml`, or with an id that isn't a whole number from 1, is one. |
+| 3 | Refused, before any output: the input is missing or unreadable; none of the four formats (`neither a .pst, a .msg, an .eml nor an mbox`); an `.ost`; a PST version outlook-pst doesn't read (it reads 14 and 15, ANSI, and 23, Unicode); a store whose header, root, or IPM subtree can't be read; a compound file that isn't an MS-OXMSG message, or whose top-level properties can't be read; or an `.eml` of 4 GiB or more, or one mail-parser can't parse; or an `--after` id that names no message in the store. |
 | 4 | A fault of the CLI's own, never reported as any other code. |
 
 An error, for exit codes 1 to 4, is one line on stderr,

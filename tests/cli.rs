@@ -4,7 +4,7 @@ mod common;
 
 use common::{built, fixture, run};
 
-const USAGE: &str = "usage: spike-ai-pipeline-mail [--attachments <dir>] <input>
+const USAGE: &str = "usage: spike-ai-pipeline-mail [--attachments <dir>] [--after <id>] <input>
        spike-ai-pipeline-mail --version
 ";
 
@@ -41,6 +41,12 @@ fn usage_errors_exit_2_with_usage() {
             &["--attachments", not_a_dir, store],
             &format!("--attachments {not_a_dir} is not a directory"),
         ),
+        (&[store, "--after"], "--after needs a message id"),
+        (&["--after", "", store], "--after needs a message id"),
+        (
+            &["--after", "1", "--after", "2", store],
+            "--after is given more than once",
+        ),
     ];
     for (args, reason) in cases {
         let out = run(args);
@@ -52,6 +58,64 @@ fn usage_errors_exit_2_with_usage() {
             "{args:?}"
         );
     }
+}
+
+/// `--after` takes decimal digits alone naming a whole number from 1: 0, which names no message
+/// since node ids and ordinals start at 1, is a usage error, as are a sign, a non-digit, and a
+/// number past u32.
+#[test]
+fn a_malformed_after_id_is_a_usage_error() {
+    let store = fixture("pst/libyal/outlook.pst");
+    let store = store.to_str().unwrap();
+    for id in [
+        "0",
+        "00",
+        "-1",
+        "+1",
+        "1.5",
+        "0x10",
+        "abc",
+        " 1",
+        "4294967296",
+    ] {
+        let out = run(&["--after", id, store]);
+        assert_eq!(out.code, Some(2), "{id:?}");
+        assert_eq!(out.stdout, "", "{id:?}");
+        assert_eq!(
+            out.stderr,
+            format!(
+                "spike-ai-pipeline-mail: --after {id} is not a message id, a whole number from 1\n{USAGE}"
+            ),
+            "{id:?}"
+        );
+    }
+}
+
+/// A .msg or an .eml is a single message, with nothing to resume after: `--after` with one is a
+/// usage error, given once the input is sniffed; a missing input is still refused as missing.
+#[test]
+fn after_with_a_single_message_is_a_usage_error() {
+    for (input, kind) in [
+        ("generated/msg/01-plain.msg", "a .msg"),
+        ("generated/eml/01-plain.eml", "an .eml"),
+    ] {
+        let path = fixture(input);
+        let path = path.to_str().unwrap();
+        let out = run(&[path, "--after", "1"]);
+        assert_eq!(out.code, Some(2), "{input}");
+        assert_eq!(out.stdout, "", "{input}");
+        assert_eq!(
+            out.stderr,
+            format!(
+                "spike-ai-pipeline-mail: --after resumes a .pst or an mbox; \
+                 {path} is {kind}, a single message\n{USAGE}"
+            ),
+            "{input}"
+        );
+    }
+    let missing = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("missing.eml");
+    let out = run(&[missing.as_os_str(), "--after".as_ref(), "1".as_ref()]);
+    assert_eq!(out.code, Some(3), "{}", out.stderr);
 }
 
 /// --attachments is accepted before or after the input, and a directory that doesn't exist yet

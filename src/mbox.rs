@@ -9,23 +9,41 @@
 //! mboxo is read the same way, so a body line that was ">From " to begin with loses its ">" too.
 //! A message runs to the next line starting "From ", and mboxcl's Content-Length is not read, so
 //! in an mboxcl or mboxcl2 an unquoted body line starting "From " starts a new message.
+//!
+//! With `--after <n>` the read resumes after message n: the iterator scans the separators of
+//! messages 1 to n from the start of the file, parsing none of them, so none of their lines,
+//! warnings or attachments are written, and the store line and the lines of the messages after n
+//! follow, as a whole read writes them. An n past the file's last ordinal, empty entries counted,
+//! is refused before any output.
 
 use std::fs::File;
 use std::io::{BufReader, Write};
 use std::path::Path;
 
 use mail_parser::MessageBuffers;
-use mail_parser::mailbox::mbox::MessageIterator;
+use mail_parser::mailbox::mbox::{Message, MessageIterator};
 
 use crate::files::Files;
 use crate::jsonl::Lines;
 use crate::model::{self, Skipped, Store};
 use crate::{Fault, mime, sniff, warn, warn_below};
 
-/// Reads the mbox at `path` and writes its store line and its messages' lines to `out`.
-pub fn read(path: &Path, out: &mut Lines<impl Write>, files: &mut Files) -> Result<(), Fault> {
-    let file =
-        File::open(path).map_err(|err| Fault::Refused(format!("{}: {err}", path.display())))?;
+/// Reads the mbox at `path` and writes its store line and the lines of its messages, those after
+/// ordinal `after` when it is given, to `out`.
+pub fn read(
+    path: &Path,
+    after: Option<u32>,
+    out: &mut Lines<impl Write>,
+    files: &mut Files,
+) -> Result<(), Fault> {
+    let input = path.display();
+    let file = File::open(path).map_err(|err| Fault::Refused(format!("{input}: {err}")))?;
+    let mut entries = (1u32..).zip(MessageIterator::new(BufReader::new(file)));
+    let ended = match after {
+        Some(after) => skip_to(&mut entries, after)
+            .map_err(|reason| Fault::Refused(format!("{input}: --after {after}: {reason}")))?,
+        None => false,
+    };
     files.create()?;
     out.write(&Store {
         line: "store",
@@ -36,9 +54,12 @@ pub fn read(path: &Path, out: &mut Lines<impl Write>, files: &mut Files) -> Resu
         display_name: None,
     })
     .map_err(Fault::Output)?;
+    if ended {
+        return Ok(());
+    }
     let parser = mime::parser();
     let mut buffers = MessageBuffers::new();
-    for (ordinal, entry) in (1u32..).zip(MessageIterator::new(BufReader::new(file))) {
+    for (ordinal, entry) in entries {
         let place = format!("message {ordinal}");
         let entry = match entry {
             Ok(entry) => entry,
@@ -85,6 +106,35 @@ pub fn read(path: &Path, out: &mut Lines<impl Write>, files: &mut Files) -> Resu
         buffers = parsed.into_buffers();
     }
     Ok(())
+}
+
+/// Scans past messages 1 to `after`, separators only, so that the next entry is message
+/// `after + 1`, and says whether the read ends there. An entry that can't be read ends a whole
+/// read with its skipped line, so one before `after` leaves `after` unreachable and is refused,
+/// with the reason; one at `after` is the cursor's own, and the read ends at it, its tail empty,
+/// as the whole read's is.
+fn skip_to(
+    entries: &mut impl Iterator<Item = (u32, std::io::Result<Message>)>,
+    after: u32,
+) -> Result<bool, String> {
+    let mut last = 0;
+    for (ordinal, entry) in entries.by_ref() {
+        last = ordinal;
+        if let Err(err) = &entry
+            && ordinal < after
+        {
+            return Err(format!(
+                "message {ordinal}, before it, can't be read: {err}"
+            ));
+        }
+        if ordinal == after {
+            return Ok(entry.is_err());
+        }
+    }
+    Err(match last {
+        0 => "the mbox has no messages".to_owned(),
+        last => format!("the mbox's last message is {last}"),
+    })
 }
 
 /// A message's contents without the blank line that ends it, which the mbox writer adds before
