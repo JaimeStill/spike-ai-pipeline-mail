@@ -270,3 +270,33 @@ fn an_id_not_in_the_store_is_refused() {
         ),
     );
 }
+
+/// An id's leading zeros are read: `--after 005` resumes an mbox as `--after 5` does, and
+/// `--after 0002097284` a .pst as `--after 2097284` does, byte for byte.
+#[test]
+fn leading_zeros_are_read() {
+    for (input, padded, plain) in [
+        ("mime/nine.mboxrd", "005", "5"),
+        ("generated/pst/mailbox.pst", "0002097284", "2097284"),
+    ] {
+        let path = fixture(input);
+        let expected = run(&[path.as_os_str(), "--after".as_ref(), plain.as_ref()]);
+        assert_eq!(
+            expected.code,
+            Some(0),
+            "{input} --after {plain}: {}",
+            expected.stderr
+        );
+        let out = run(&[path.as_os_str(), "--after".as_ref(), padded.as_ref()]);
+        assert_eq!(
+            out.code,
+            Some(0),
+            "{input} --after {padded}: {}",
+            out.stderr
+        );
+        assert!(
+            out.stdout == expected.stdout,
+            "{input}: --after {padded} is not --after {plain}"
+        );
+    }
+}

@@ -84,7 +84,7 @@ fn a_malformed_after_id_is_a_usage_error() {
         assert_eq!(
             out.stderr,
             format!(
-                "spike-ai-pipeline-mail: --after {id} is not a message id, a whole number from 1\n{USAGE}"
+                "spike-ai-pipeline-mail: --after {id} is not a message id, a whole number from 1 to 4,294,967,295\n{USAGE}"
             ),
             "{id:?}"
         );

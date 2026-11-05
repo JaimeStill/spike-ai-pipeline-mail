@@ -185,7 +185,7 @@ fn parse(args: &[OsString]) -> Result<Command, Fault> {
                 };
                 let Some(id) = message_id(id) else {
                     return usage(&format!(
-                        "--after {} is not a message id, a whole number from 1",
+                        "--after {} is not a message id, a whole number from 1 to 4,294,967,295",
                         id.to_string_lossy()
                     ));
                 };

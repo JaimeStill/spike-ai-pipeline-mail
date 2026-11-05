@@ -57,7 +57,7 @@ mboxrd, whose every byte before the cursor is scanned (the finding's "Resuming a
 | --- | --- |
 | 0 | Read, even when records were skipped. |
 | 1 | stdout, or an attachment's content, couldn't be written. |
-| 2 | A usage error; usage goes to stderr. `--after` with a `.msg` or an `.eml`, or with an id that isn't a whole number from 1, is one. |
+| 2 | A usage error; usage goes to stderr. `--after` with a `.msg` or an `.eml`, or with an id that isn't a whole number from 1 to 4,294,967,295, is one. |
 | 3 | Refused, before any output: the input is missing or unreadable; none of the four formats (`neither a .pst, a .msg, an .eml nor an mbox`); an `.ost`; a PST version outlook-pst doesn't read (it reads 14 and 15, ANSI, and 23, Unicode); a store whose header, root, or IPM subtree can't be read; a compound file that isn't an MS-OXMSG message, or whose top-level properties can't be read; or an `.eml` of 4 GiB or more, or one mail-parser can't parse; or an `--after` id that names no message in the store. |
 | 4 | A fault of the CLI's own, never reported as any other code. |
 
