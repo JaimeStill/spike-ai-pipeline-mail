@@ -30,7 +30,7 @@ from its name, in this order: a PST header; an OLE2 compound file, which must ho
 message; a first line starting `From `, an mbox's separator line; else an RFC 5322 header block,
 an `.eml`: a first line that is a header field, and a `From` or `Date` field before the block's
 blank line or its first line that is neither a field nor a folded continuation. The arguments may
-come in any order; `--version`, alone, prints the bare version, `0.2.0`.
+come in any order; `--version`, alone, prints the bare version, `0.3.0`.
 
 With `--attachments <dir>`, each distinct attachment content is written once into `<dir>`,
 created if missing, as stored, before the line of the message it belongs to. Without it nothing is
