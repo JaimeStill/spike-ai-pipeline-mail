@@ -1,0 +1,2737 @@
+{
+  "cli": {
+    "binary": "spike-ai-pipeline-mail",
+    "build": "release, static musl, the check's target",
+    "commit": "v0.2.0-2-gd726744",
+    "sha256": "22d1063b1d74974d7b9cf95eb1f7cfc3d2bc00b8ae15ae550689173258686450",
+    "size": 4123528,
+    "version": "0.3.0"
+  },
+  "finished": "2026-11-05T14:01:41Z",
+  "machine": {
+    "cpu": "Intel(R) Core(TM) Ultra 9 185H",
+    "kernel": "7.2.15-1-omarchy",
+    "logical_cpus": 22,
+    "memory": "32284144 kB"
+  },
+  "plaso": {
+    "commit": "f5bf35fcc102585eed58b930392da56a318690f6",
+    "license": "Apache-2.0",
+    "path": "test_data/nromanoff@stark-research-labs.com.pst",
+    "repository": "https://github.com/log2timeline/plaso",
+    "sha256": "bab64f3589f8ce758df9e595b89a5e4b9be159929e49100397152fdcc7bd6013",
+    "size": 59442176
+  },
+  "recovery": {
+    "generated_eml": {
+      "files": [
+        "generated/eml/01-plain.eml",
+        "generated/eml/02-reply-latin1.eml",
+        "generated/eml/03-html-inline-image.eml",
+        "generated/eml/04-attachment-cyrillic.eml",
+        "generated/eml/05-japanese.eml",
+        "generated/eml/06-chinese.eml",
+        "generated/eml/07-html-only-bcc.eml",
+        "generated/eml/08-forward-attached-message.eml"
+      ],
+      "kinds": [
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "message",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "subject",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "sender",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 9,
+          "generator_gap": 0,
+          "kind": "recipient (to)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 9
+        },
+        {
+          "expected": 2,
+          "generator_gap": 0,
+          "kind": "recipient (cc)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 2
+        },
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "submit time",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 6,
+          "generator_gap": 0,
+          "kind": "delivery time",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 6
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "importance",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "Message-ID",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 7,
+          "generator_gap": 0,
+          "kind": "body (plain text)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 7
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "In-Reply-To",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 2,
+          "generator_gap": 0,
+          "kind": "References",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 2
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "body (HTML)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "attachment content",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "attachment filename",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "attachment MIME type",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "attachment content-id",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "attachment inline flag",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "recipient (bcc)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "embedded message (subject)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        }
+      ],
+      "misses": []
+    },
+    "generated_msg": {
+      "files": [
+        "generated/msg/01-plain.msg",
+        "generated/msg/02-reply-latin1.msg",
+        "generated/msg/03-html-inline-image.msg",
+        "generated/msg/04-attachment-cyrillic.msg",
+        "generated/msg/05-japanese.msg",
+        "generated/msg/06-chinese.msg",
+        "generated/msg/07-html-only-bcc.msg",
+        "generated/msg/08-forward-attached-message.msg"
+      ],
+      "kinds": [
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "message",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "subject",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "sender",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 9,
+          "generator_gap": 0,
+          "kind": "recipient (to)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 9
+        },
+        {
+          "expected": 2,
+          "generator_gap": 0,
+          "kind": "recipient (cc)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 2
+        },
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "submit time",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 6,
+          "generator_gap": 6,
+          "kind": "delivery time",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 0
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "importance",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 8,
+          "generator_gap": 8,
+          "kind": "Message-ID",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 0
+        },
+        {
+          "expected": 7,
+          "generator_gap": 0,
+          "kind": "body (plain text)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 7
+        },
+        {
+          "expected": 1,
+          "generator_gap": 1,
+          "kind": "In-Reply-To",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 0
+        },
+        {
+          "expected": 2,
+          "generator_gap": 2,
+          "kind": "References",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 0
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "body (HTML)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "attachment content",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "attachment filename",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 1,
+          "kind": "attachment MIME type",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 2
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "attachment content-id",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "attachment inline flag",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "recipient (bcc)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 1,
+          "kind": "embedded message (subject)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 0
+        }
+      ],
+      "misses": [
+        {
+          "expected": "2026-01-12T14:16:30Z",
+          "file": "msg/01-plain.msg",
+          "got": "2026-01-12T14:15:00Z",
+          "kind": "delivery time",
+          "message": "01-plain.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<notes-1@example.org>",
+          "file": "msg/01-plain.msg",
+          "got": "notes-1@example.org",
+          "kind": "Message-ID",
+          "message": "01-plain.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "2026-01-12T18:02:41Z",
+          "file": "msg/02-reply-latin1.msg",
+          "got": "2026-01-12T18:02:00Z",
+          "kind": "delivery time",
+          "message": "02-reply-latin1.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<reply-1@example.org>",
+          "file": "msg/02-reply-latin1.msg",
+          "got": "reply-1@example.org",
+          "kind": "Message-ID",
+          "message": "02-reply-latin1.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<notes-1@example.org>",
+          "file": "msg/02-reply-latin1.msg",
+          "got": "notes-1@example.org",
+          "kind": "In-Reply-To",
+          "message": "02-reply-latin1.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<notes-1@example.org>",
+          "file": "msg/02-reply-latin1.msg",
+          "got": "notes-1@example.org",
+          "kind": "References",
+          "message": "02-reply-latin1.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "2026-02-03T09:00:05Z",
+          "file": "msg/03-html-inline-image.msg",
+          "got": "2026-02-03T09:00:00Z",
+          "kind": "delivery time",
+          "message": "03-html-inline-image.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<bug-1945@example.net>",
+          "file": "msg/03-html-inline-image.msg",
+          "got": "bug-1945@example.net",
+          "kind": "Message-ID",
+          "message": "03-html-inline-image.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "2026-03-18T09:31:00Z",
+          "file": "msg/04-attachment-cyrillic.msg",
+          "got": "2026-03-18T09:30:00Z",
+          "kind": "delivery time",
+          "message": "04-attachment-cyrillic.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<table-1869@example.ru>",
+          "file": "msg/04-attachment-cyrillic.msg",
+          "got": "table-1869@example.ru",
+          "kind": "Message-ID",
+          "message": "04-attachment-cyrillic.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "text/csv",
+          "file": "msg/04-attachment-cyrillic.msg",
+          "got": "application/octet-stream",
+          "kind": "attachment MIME type",
+          "message": "04-attachment-cyrillic.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "2026-04-09T23:00:12Z",
+          "file": "msg/05-japanese.msg",
+          "got": "2026-04-09T23:00:00Z",
+          "kind": "delivery time",
+          "message": "05-japanese.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<neko@example.jp>",
+          "file": "msg/05-japanese.msg",
+          "got": "neko@example.jp",
+          "kind": "Message-ID",
+          "message": "05-japanese.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "2026-04-26T13:00:09Z",
+          "file": "msg/06-chinese.msg",
+          "got": "2026-04-26T13:00:00Z",
+          "kind": "delivery time",
+          "message": "06-chinese.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<jingyesi@example.cn>",
+          "file": "msg/06-chinese.msg",
+          "got": "jingyesi@example.cn",
+          "kind": "Message-ID",
+          "message": "06-chinese.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<noon@example.org>",
+          "file": "msg/07-html-only-bcc.msg",
+          "got": "noon@example.org",
+          "kind": "Message-ID",
+          "message": "07-html-only-bcc.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<fwd-1@example.org>",
+          "file": "msg/08-forward-attached-message.msg",
+          "got": "fwd-1@example.org",
+          "kind": "Message-ID",
+          "message": "08-forward-attached-message.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<notes-0@example.org>",
+          "file": "msg/08-forward-attached-message.msg",
+          "got": "notes-0@example.org",
+          "kind": "References",
+          "message": "08-forward-attached-message.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "Notes on the engine (draft)",
+          "file": "msg/08-forward-attached-message.msg",
+          "got": null,
+          "kind": "embedded message (subject)",
+          "message": "08-forward-attached-message.eml",
+          "outcome": "generator gap"
+        }
+      ]
+    },
+    "generated_pst": {
+      "files": [
+        "generated/pst/mailbox.pst"
+      ],
+      "kinds": [
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "message",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "folder",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "subject",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "sender",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 9,
+          "generator_gap": 0,
+          "kind": "recipient (to)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 9
+        },
+        {
+          "expected": 2,
+          "generator_gap": 0,
+          "kind": "recipient (cc)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 2
+        },
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "submit time",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 6,
+          "generator_gap": 0,
+          "kind": "delivery time",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 6
+        },
+        {
+          "expected": 1,
+          "generator_gap": 1,
+          "kind": "importance",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 0
+        },
+        {
+          "expected": 8,
+          "generator_gap": 8,
+          "kind": "Message-ID",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 0
+        },
+        {
+          "expected": 7,
+          "generator_gap": 0,
+          "kind": "body (plain text)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 7
+        },
+        {
+          "expected": 1,
+          "generator_gap": 1,
+          "kind": "In-Reply-To",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 0
+        },
+        {
+          "expected": 2,
+          "generator_gap": 2,
+          "kind": "References",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 0
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "body (HTML)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "attachment content",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "attachment filename",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "attachment MIME type",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "attachment content-id",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "attachment inline flag",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 1,
+          "generator_gap": 1,
+          "kind": "recipient (bcc)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 0
+        },
+        {
+          "expected": 1,
+          "generator_gap": 1,
+          "kind": "embedded message (subject)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 0
+        }
+      ],
+      "misses": [
+        {
+          "expected": "high",
+          "file": "pst/mailbox.pst",
+          "got": "normal",
+          "kind": "importance",
+          "message": "01-plain.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<notes-1@example.org>",
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "Message-ID",
+          "message": "01-plain.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<reply-1@example.org>",
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "Message-ID",
+          "message": "02-reply-latin1.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<notes-1@example.org>",
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "In-Reply-To",
+          "message": "02-reply-latin1.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<notes-1@example.org>",
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "References",
+          "message": "02-reply-latin1.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<bug-1945@example.net>",
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "Message-ID",
+          "message": "03-html-inline-image.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<table-1869@example.ru>",
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "Message-ID",
+          "message": "04-attachment-cyrillic.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<neko@example.jp>",
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "Message-ID",
+          "message": "05-japanese.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<jingyesi@example.cn>",
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "Message-ID",
+          "message": "06-chinese.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": {
+            "address": "charles@example.org",
+            "name": "Charles Babbage"
+          },
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "recipient (bcc)",
+          "message": "07-html-only-bcc.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<noon@example.org>",
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "Message-ID",
+          "message": "07-html-only-bcc.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<fwd-1@example.org>",
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "Message-ID",
+          "message": "08-forward-attached-message.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "<notes-0@example.org>",
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "References",
+          "message": "08-forward-attached-message.eml",
+          "outcome": "generator gap"
+        },
+        {
+          "expected": "Notes on the engine (draft)",
+          "file": "pst/mailbox.pst",
+          "got": null,
+          "kind": "embedded message (subject)",
+          "message": "08-forward-attached-message.eml",
+          "outcome": "generator gap"
+        }
+      ]
+    },
+    "mime_eml": {
+      "files": [
+        "mime/eml/09-threading.eml"
+      ],
+      "kinds": [
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "message",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "subject",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "sender",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "recipient (to)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "recipient (cc)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "submit time",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "delivery time",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "importance",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "Message-ID",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "In-Reply-To",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "References",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "conversation topic",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "conversation index",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "sensitivity",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "body (plain text)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        }
+      ],
+      "misses": []
+    },
+    "nine_mboxrd": {
+      "files": [
+        "mime/nine.mboxrd"
+      ],
+      "kinds": [
+        {
+          "expected": 9,
+          "generator_gap": 0,
+          "kind": "message",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 9
+        },
+        {
+          "expected": 9,
+          "generator_gap": 0,
+          "kind": "id (ordinal)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 9
+        },
+        {
+          "expected": 9,
+          "generator_gap": 0,
+          "kind": "Message-ID",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 9
+        },
+        {
+          "expected": 9,
+          "generator_gap": 0,
+          "kind": "body derived",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 9
+        },
+        {
+          "expected": 8,
+          "generator_gap": 0,
+          "kind": "body text",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 8
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "cc",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 7,
+          "generator_gap": 0,
+          "kind": "delivery time",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 7
+        },
+        {
+          "expected": 2,
+          "generator_gap": 0,
+          "kind": "importance",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 2
+        },
+        {
+          "expected": 9,
+          "generator_gap": 0,
+          "kind": "sender",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 9
+        },
+        {
+          "expected": 9,
+          "generator_gap": 0,
+          "kind": "subject",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 9
+        },
+        {
+          "expected": 9,
+          "generator_gap": 0,
+          "kind": "submit time",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 9
+        },
+        {
+          "expected": 9,
+          "generator_gap": 0,
+          "kind": "to",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 9
+        },
+        {
+          "expected": 9,
+          "generator_gap": 0,
+          "kind": "transport headers",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 9
+        },
+        {
+          "expected": 2,
+          "generator_gap": 0,
+          "kind": "In-Reply-To",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 2
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "References",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "attachments",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "body html",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "bcc",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "conversation index",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "conversation topic",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "sensitivity",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        }
+      ],
+      "misses": []
+    },
+    "poi_msg": {
+      "files": [
+        "msg/poi/ASCII_UTF-8_CP1252_LCID1031_HTML.msg",
+        "msg/poi/example_sent_regular.msg",
+        "msg/poi/msgClassAppointment.msg",
+        "msg/poi/outlook_30_msg.msg"
+      ],
+      "kinds": [
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "body html",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "body text",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "subject",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 2,
+          "generator_gap": 0,
+          "kind": "bcc address",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 2
+        },
+        {
+          "expected": 2,
+          "generator_gap": 0,
+          "kind": "bcc name",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 2
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "cc address",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "cc name",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 2,
+          "generator_gap": 0,
+          "kind": "sender name",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 2
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "to address",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 3,
+          "generator_gap": 0,
+          "kind": "to name",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 3
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "bcc count",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "cc count",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 2,
+          "generator_gap": 0,
+          "kind": "to count",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 2
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "class",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "conversation topic",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "body html hash",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "body text hash",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        }
+      ],
+      "misses": []
+    },
+    "rlug_mbox": {
+      "files": [
+        "mime/rlug/mbox.rlug"
+      ],
+      "kinds": [
+        {
+          "expected": 5,
+          "generator_gap": 0,
+          "kind": "message",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 5
+        },
+        {
+          "expected": 5,
+          "generator_gap": 0,
+          "kind": "id (ordinal)",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 5
+        },
+        {
+          "expected": 5,
+          "generator_gap": 0,
+          "kind": "Message-ID",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 5
+        },
+        {
+          "expected": 5,
+          "generator_gap": 0,
+          "kind": "body derived",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 5
+        },
+        {
+          "expected": 5,
+          "generator_gap": 0,
+          "kind": "body text",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 5
+        },
+        {
+          "expected": 5,
+          "generator_gap": 0,
+          "kind": "delivery time",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 5
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "importance",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 5,
+          "generator_gap": 0,
+          "kind": "sender",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 5
+        },
+        {
+          "expected": 5,
+          "generator_gap": 0,
+          "kind": "subject",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 5
+        },
+        {
+          "expected": 5,
+          "generator_gap": 0,
+          "kind": "submit time",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 5
+        },
+        {
+          "expected": 5,
+          "generator_gap": 0,
+          "kind": "to",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 5
+        },
+        {
+          "expected": 5,
+          "generator_gap": 0,
+          "kind": "transport headers",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 5
+        },
+        {
+          "expected": 2,
+          "generator_gap": 0,
+          "kind": "References",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 2
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "In-Reply-To",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        }
+      ],
+      "misses": []
+    },
+    "tika_msg": {
+      "files": [
+        "msg/tika/test-outlook2003.msg",
+        "msg/tika/testMSG_att_msg.msg",
+        "msg/tika/testMSG_chinese.msg",
+        "msg/tika/testMSG_forwarded.msg"
+      ],
+      "kinds": [
+        {
+          "expected": 11,
+          "generator_gap": 0,
+          "kind": "attachments inline",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 11
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "subject",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "to name",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "attachments method",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "attachments filename",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "Message-ID",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "sender address",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "sender name",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "to address",
+          "mismatched": 1,
+          "missing": 0,
+          "recovered": 0
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "conversation index",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "In-Reply-To",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        },
+        {
+          "expected": 1,
+          "generator_gap": 0,
+          "kind": "References",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 1
+        }
+      ],
+      "misses": [
+        {
+          "expected": "tests.chang@fengttt.com",
+          "file": "tika/testMSG_chinese.msg",
+          "got": "/O=FT GROUP/OU=FT/CN=RECIPIENTS/CTestsiaChang",
+          "kind": "to address",
+          "message": "/to/0/address",
+          "outcome": "mismatched"
+        }
+      ]
+    },
+    "tika_pst_threading": {
+      "files": [
+        "pst/tika/testPST.pst",
+        "pst/tika/testPST_variousBodyTypes.pst"
+      ],
+      "kinds": [
+        {
+          "expected": 11,
+          "generator_gap": 0,
+          "kind": "conversation index",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 11
+        },
+        {
+          "expected": 11,
+          "generator_gap": 0,
+          "kind": "conversation topic",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 11
+        },
+        {
+          "absent_expected": 4,
+          "absent_ok": 4,
+          "expected": 7,
+          "generator_gap": 0,
+          "kind": "In-Reply-To",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 7
+        },
+        {
+          "expected": 11,
+          "generator_gap": 0,
+          "kind": "Message-ID",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 11
+        },
+        {
+          "absent_expected": 4,
+          "absent_ok": 4,
+          "expected": 7,
+          "generator_gap": 0,
+          "kind": "References",
+          "mismatched": 0,
+          "missing": 0,
+          "recovered": 7
+        }
+      ],
+      "misses": []
+    }
+  },
+  "rusage_floor": {
+    "code": 0,
+    "maxrss_kib": 1528,
+    "status": "exited",
+    "sys_us": 0,
+    "user_us": 640,
+    "wall_ns": 1432377
+  },
+  "scale": {
+    "mboxrd_sha256": "79f5ad34bd4962a1bd84974fd1b4e06bd06bbba7718e5db1321ea64dbb22fe1a",
+    "mboxrd_size": 2693103493,
+    "record": {
+      "content_sha256": "d40792a45510dc0d4b7a3abc527848095d4f255bae26d853ee7f9a87119362b4",
+      "counts": {
+        "attachment_bytes": 1818207086,
+        "attachments": 17828,
+        "html": 34889,
+        "html_only": 4946,
+        "inline_images": 3374,
+        "largest_attachment": 16736336,
+        "messages": 50000,
+        "mime_bytes": 2690853493,
+        "replies": 14977
+      },
+      "mboxrd": {
+        "file": "scale.mboxrd",
+        "note": "The same messages in the same order, as an mboxrd, by scripts/mboxrd.sh's conventions: the separator line \"From MAILER-DAEMON Thu Jan  1 00:00:00 1970\" (LF) before each message, one more \">\" on each of its lines matching ^>*From , and a blank line (LF) after it; the messages keep their CRLF. Its bytes are a function of the messages alone, so its SHA-256 is the same on every run with these parameters and tools.",
+        "sha256": "79f5ad34bd4962a1bd84974fd1b4e06bd06bbba7718e5db1321ea64dbb22fe1a",
+        "size": 2693103493
+      },
+      "note": "Written by the generator's scale mode (MISE_ENV=fixtures mise run scale); never committed. The messages are a function of the parameters alone: content_sha256 hashes each message's folder path and MIME bytes, in order, and is the same on every run with these parameters and tools. The .pst's bytes are not: PST Builder 1.3.0 writes a random store UID and search keys, so the store has no SHA-256 worth recording.",
+      "parameters": {
+        "attachment_bytes": "log-uniform from 256 to 524288",
+        "attachment_share": 0.18,
+        "attachments_per_message": "1 to 3, uniform",
+        "bodies": "plain only 30%, plain and HTML 60%, HTML only 10%; 1 to 6 paragraphs of 1 to 5 sentences of 4 to 17 words",
+        "folders": [
+          {
+            "path": "Inbox",
+            "weight": 30
+          },
+          {
+            "path": "Inbox/Projects/Engine",
+            "weight": 8
+          },
+          {
+            "path": "Inbox/Projects/Notes",
+            "weight": 6
+          },
+          {
+            "path": "Inbox/Projects/Été",
+            "weight": 3
+          },
+          {
+            "path": "Inbox/Lists",
+            "weight": 10
+          },
+          {
+            "path": "Sent Items",
+            "weight": 15
+          },
+          {
+            "path": "Archive/2024/Q1",
+            "weight": 5
+          },
+          {
+            "path": "Archive/2024/Q2",
+            "weight": 5
+          },
+          {
+            "path": "Archive/2024/Q3",
+            "weight": 5
+          },
+          {
+            "path": "Archive/2024/Q4",
+            "weight": 5
+          },
+          {
+            "path": "Archive/2025",
+            "weight": 6
+          },
+          {
+            "path": "Junk E-mail",
+            "weight": 2
+          }
+        ],
+        "inline_image_share": 0.1,
+        "large_attachment_bytes": "log-uniform from 1048576 to 16777216, one more attachment",
+        "large_attachment_share": 0.002,
+        "messages": 50000,
+        "people": 200,
+        "reply_share": 0.3,
+        "seed": 16
+      },
+      "parts": [
+        {
+          "file": "scale.pst",
+          "size": 2141594624
+        }
+      ],
+      "seconds": 37.5,
+      "tools": {
+        "MimeKit": "4.18.2",
+        "MsgKit": "3.0.6",
+        "OpenMcdf": "3.3.0",
+        "PstBuilder": "1.3.0",
+        "PstBuilder.Eml": "1.3.0",
+        "dotnet-runtime": "10.0.13",
+        "dotnet-sdk": "10.0.402"
+      }
+    },
+    "size": 2141594624
+  },
+  "schema": 1,
+  "started": "2026-11-05T13:57:17Z",
+  "timing": [
+    {
+      "after": null,
+      "attachment_records": 3,
+      "attachments": false,
+      "lines": {
+        "folder": 9,
+        "message": 8,
+        "store": 1
+      },
+      "median_wall_ns": 2975979,
+      "peak_maxrss_kib": 2528,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 2528,
+          "status": "exited",
+          "sys_us": 916,
+          "user_us": 1838,
+          "wall_ns": 2975979
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 271360,
+      "stdout_bytes": 8362,
+      "store": "tests/fixtures/generated/pst/mailbox.pst",
+      "warnings": 0,
+      "written": null
+    },
+    {
+      "after": null,
+      "attachment_records": 3,
+      "attachments": true,
+      "lines": {
+        "folder": 9,
+        "message": 8,
+        "store": 1
+      },
+      "median_wall_ns": 2625206,
+      "peak_maxrss_kib": 2504,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 2504,
+          "status": "exited",
+          "sys_us": 0,
+          "user_us": 2198,
+          "wall_ns": 2625206
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 271360,
+      "stdout_bytes": 8362,
+      "store": "tests/fixtures/generated/pst/mailbox.pst",
+      "warnings": 0,
+      "written": {
+        "bytes": 137,
+        "files": 3
+      }
+    },
+    {
+      "after": null,
+      "attachment_records": 1,
+      "attachments": false,
+      "lines": {
+        "folder": 2,
+        "message": 7,
+        "store": 1
+      },
+      "median_wall_ns": 7562139,
+      "peak_maxrss_kib": 2704,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 2704,
+          "status": "exited",
+          "sys_us": 2039,
+          "user_us": 5076,
+          "wall_ns": 7562139
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2302976,
+      "stdout_bytes": 64015,
+      "store": "tests/fixtures/pst/tika/testPST.pst",
+      "warnings": 1,
+      "written": null
+    },
+    {
+      "after": null,
+      "attachment_records": 1,
+      "attachments": true,
+      "lines": {
+        "folder": 2,
+        "message": 7,
+        "store": 1
+      },
+      "median_wall_ns": 6910479,
+      "peak_maxrss_kib": 2680,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 2680,
+          "status": "exited",
+          "sys_us": 0,
+          "user_us": 6453,
+          "wall_ns": 6910479
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2302976,
+      "stdout_bytes": 64015,
+      "store": "tests/fixtures/pst/tika/testPST.pst",
+      "warnings": 1,
+      "written": {
+        "bytes": 0,
+        "files": 0
+      }
+    },
+    {
+      "after": null,
+      "attachment_records": 0,
+      "attachments": false,
+      "lines": {
+        "folder": 4,
+        "message": 4,
+        "store": 1
+      },
+      "median_wall_ns": 5023316,
+      "peak_maxrss_kib": 2312,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 2312,
+          "status": "exited",
+          "sys_us": 963,
+          "user_us": 3840,
+          "wall_ns": 5023316
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 271360,
+      "stdout_bytes": 35935,
+      "store": "tests/fixtures/pst/tika/testPST_variousBodyTypes.pst",
+      "warnings": 0,
+      "written": null
+    },
+    {
+      "after": null,
+      "attachment_records": 0,
+      "attachments": true,
+      "lines": {
+        "folder": 4,
+        "message": 4,
+        "store": 1
+      },
+      "median_wall_ns": 5459339,
+      "peak_maxrss_kib": 2704,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 2704,
+          "status": "exited",
+          "sys_us": 3123,
+          "user_us": 2080,
+          "wall_ns": 5459339
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 271360,
+      "stdout_bytes": 35935,
+      "store": "tests/fixtures/pst/tika/testPST_variousBodyTypes.pst",
+      "warnings": 0,
+      "written": {
+        "bytes": 0,
+        "files": 0
+      }
+    },
+    {
+      "after": null,
+      "attachment_records": 22,
+      "attachments": false,
+      "lines": {
+        "folder": 17,
+        "message": 2,
+        "store": 1
+      },
+      "median_wall_ns": 4746590,
+      "peak_maxrss_kib": 2872,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 2872,
+          "status": "exited",
+          "sys_us": 2251,
+          "user_us": 2207,
+          "wall_ns": 4746590
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 271360,
+      "stdout_bytes": 66174,
+      "store": "tests/fixtures/pst/libyal/outlook.pst",
+      "warnings": 0,
+      "written": null
+    },
+    {
+      "after": null,
+      "attachment_records": 22,
+      "attachments": true,
+      "lines": {
+        "folder": 17,
+        "message": 2,
+        "store": 1
+      },
+      "median_wall_ns": 5529992,
+      "peak_maxrss_kib": 3072,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 3072,
+          "status": "exited",
+          "sys_us": 2649,
+          "user_us": 2582,
+          "wall_ns": 5529992
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 271360,
+      "stdout_bytes": 66174,
+      "store": "tests/fixtures/pst/libyal/outlook.pst",
+      "warnings": 0,
+      "written": {
+        "bytes": 21871,
+        "files": 11
+      }
+    },
+    {
+      "after": null,
+      "attachment_records": 2,
+      "attachments": false,
+      "lines": {
+        "folder": 13,
+        "message": 2,
+        "skipped": 1,
+        "store": 1
+      },
+      "median_wall_ns": 2280149,
+      "peak_maxrss_kib": 2528,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 2528,
+          "status": "exited",
+          "sys_us": 0,
+          "user_us": 2072,
+          "wall_ns": 2280149
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 271360,
+      "stdout_bytes": 13801,
+      "store": "tests/fixtures/pst/java-libpst/dist-list.pst",
+      "warnings": 3,
+      "written": null
+    },
+    {
+      "after": null,
+      "attachment_records": 2,
+      "attachments": true,
+      "lines": {
+        "folder": 13,
+        "message": 2,
+        "skipped": 1,
+        "store": 1
+      },
+      "median_wall_ns": 2182279,
+      "peak_maxrss_kib": 2528,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 2528,
+          "status": "exited",
+          "sys_us": 1016,
+          "user_us": 1018,
+          "wall_ns": 2182279
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 271360,
+      "stdout_bytes": 13801,
+      "store": "tests/fixtures/pst/java-libpst/dist-list.pst",
+      "warnings": 3,
+      "written": {
+        "bytes": 0,
+        "files": 0
+      }
+    },
+    {
+      "after": null,
+      "attachment_records": 0,
+      "attachments": false,
+      "lines": {
+        "folder": 13,
+        "message": 1,
+        "skipped": 1,
+        "store": 1
+      },
+      "median_wall_ns": 1622499,
+      "peak_maxrss_kib": 2120,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 2120,
+          "status": "exited",
+          "sys_us": 766,
+          "user_us": 765,
+          "wall_ns": 1622499
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 271360,
+      "stdout_bytes": 2460,
+      "store": "tests/fixtures/pst/java-libpst/passworded.pst",
+      "warnings": 1,
+      "written": null
+    },
+    {
+      "after": null,
+      "attachment_records": 0,
+      "attachments": true,
+      "lines": {
+        "folder": 13,
+        "message": 1,
+        "skipped": 1,
+        "store": 1
+      },
+      "median_wall_ns": 1606760,
+      "peak_maxrss_kib": 2120,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 2120,
+          "status": "exited",
+          "sys_us": 0,
+          "user_us": 1518,
+          "wall_ns": 1606760
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 271360,
+      "stdout_bytes": 2460,
+      "store": "tests/fixtures/pst/java-libpst/passworded.pst",
+      "warnings": 1,
+      "written": {
+        "bytes": 0,
+        "files": 0
+      }
+    },
+    {
+      "after": null,
+      "attachment_records": 6,
+      "attachments": false,
+      "lines": {
+        "folder": 18,
+        "message": 540,
+        "skipped": 3,
+        "store": 1
+      },
+      "median_wall_ns": 1609372872,
+      "peak_maxrss_kib": 42692,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 42316,
+          "status": "exited",
+          "sys_us": 235509,
+          "user_us": 1314986,
+          "wall_ns": 1569133605
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 42692,
+          "status": "exited",
+          "sys_us": 226031,
+          "user_us": 1362013,
+          "wall_ns": 1609372872
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 42344,
+          "status": "exited",
+          "sys_us": 237104,
+          "user_us": 1355691,
+          "wall_ns": 1612930582
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 59442176,
+      "stdout_bytes": 33514855,
+      "store": "plaso nromanoff@stark-research-labs.com.pst",
+      "warnings": 3,
+      "written": null
+    },
+    {
+      "after": null,
+      "attachment_records": 6,
+      "attachments": true,
+      "lines": {
+        "folder": 18,
+        "message": 540,
+        "skipped": 3,
+        "store": 1
+      },
+      "median_wall_ns": 1607161589,
+      "peak_maxrss_kib": 42700,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 42700,
+          "status": "exited",
+          "sys_us": 236767,
+          "user_us": 1352765,
+          "wall_ns": 1609802398
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 42380,
+          "status": "exited",
+          "sys_us": 244484,
+          "user_us": 1343817,
+          "wall_ns": 1607161589
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 42352,
+          "status": "exited",
+          "sys_us": 237319,
+          "user_us": 1336288,
+          "wall_ns": 1593244297
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 59442176,
+      "stdout_bytes": 33514855,
+      "store": "plaso nromanoff@stark-research-labs.com.pst",
+      "warnings": 3,
+      "written": {
+        "bytes": 14533959,
+        "files": 5
+      }
+    },
+    {
+      "after": null,
+      "attachment_records": 21202,
+      "attachments": false,
+      "lines": {
+        "folder": 17,
+        "message": 50000,
+        "store": 1
+      },
+      "median_wall_ns": 14321659406,
+      "peak_maxrss_kib": 66672,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 65700,
+          "status": "exited",
+          "sys_us": 3826778,
+          "user_us": 9787337,
+          "wall_ns": 14714422811
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 65980,
+          "status": "exited",
+          "sys_us": 3605524,
+          "user_us": 9954898,
+          "wall_ns": 14321659406
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 66672,
+          "status": "exited",
+          "sys_us": 3390240,
+          "user_us": 9833267,
+          "wall_ns": 13928299501
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2141594624,
+      "stdout_bytes": 141220403,
+      "store": "scale.pst",
+      "warnings": 0,
+      "written": null
+    },
+    {
+      "after": null,
+      "attachment_records": 21202,
+      "attachments": true,
+      "lines": {
+        "folder": 17,
+        "message": 50000,
+        "store": 1
+      },
+      "median_wall_ns": 15783328867,
+      "peak_maxrss_kib": 68184,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 67832,
+          "status": "exited",
+          "sys_us": 4857267,
+          "user_us": 9929800,
+          "wall_ns": 15783328867
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 68184,
+          "status": "exited",
+          "sys_us": 4639652,
+          "user_us": 10173359,
+          "wall_ns": 15907251177
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 67784,
+          "status": "exited",
+          "sys_us": 4702283,
+          "user_us": 9920449,
+          "wall_ns": 15650058082
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2141594624,
+      "stdout_bytes": 141220403,
+      "store": "scale.pst",
+      "warnings": 0,
+      "written": {
+        "bytes": 1877202474,
+        "files": 21202
+      }
+    },
+    {
+      "after": null,
+      "attachment_records": 21202,
+      "attachments": false,
+      "lines": {
+        "message": 50000,
+        "store": 1
+      },
+      "median_wall_ns": 6727320602,
+      "peak_maxrss_kib": 41936,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 41840,
+          "status": "exited",
+          "sys_us": 2569511,
+          "user_us": 4001692,
+          "wall_ns": 6729001795
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 41356,
+          "status": "exited",
+          "sys_us": 2644902,
+          "user_us": 3932827,
+          "wall_ns": 6727320602
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 41936,
+          "status": "exited",
+          "sys_us": 2627088,
+          "user_us": 3896360,
+          "wall_ns": 6669499142
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2693103493,
+      "stdout_bytes": 164389002,
+      "store": "scale.mboxrd",
+      "warnings": 0,
+      "written": null
+    },
+    {
+      "after": null,
+      "attachment_records": 21202,
+      "attachments": true,
+      "lines": {
+        "message": 50000,
+        "store": 1
+      },
+      "median_wall_ns": 7408059781,
+      "peak_maxrss_kib": 43128,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 43128,
+          "status": "exited",
+          "sys_us": 3145307,
+          "user_us": 4061939,
+          "wall_ns": 7385182521
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 42912,
+          "status": "exited",
+          "sys_us": 3175696,
+          "user_us": 4044489,
+          "wall_ns": 7408059781
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 41760,
+          "status": "exited",
+          "sys_us": 3197226,
+          "user_us": 4058823,
+          "wall_ns": 7410613800
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2693103493,
+      "stdout_bytes": 164389002,
+      "store": "scale.mboxrd",
+      "warnings": 0,
+      "written": {
+        "bytes": 1877202474,
+        "files": 21202
+      }
+    },
+    {
+      "after": null,
+      "attachment_records": 6,
+      "attachments": false,
+      "lines": {
+        "folder": 18,
+        "message": 540,
+        "skipped": 3,
+        "store": 1
+      },
+      "median_wall_ns": 732676264,
+      "peak_maxrss_kib": 47724,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 47676,
+          "status": "exited",
+          "sys_us": 51729,
+          "user_us": 674445,
+          "wall_ns": 737575036
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 47712,
+          "status": "exited",
+          "sys_us": 69600,
+          "user_us": 633936,
+          "wall_ns": 717549167
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 47724,
+          "status": "exited",
+          "sys_us": 60527,
+          "user_us": 659851,
+          "wall_ns": 732676264
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 59442176,
+      "stdout_bytes": 33514855,
+      "store": "plaso nromanoff@stark-research-labs.com.pst (glibc build, not released)",
+      "warnings": 3,
+      "written": null
+    },
+    {
+      "after": null,
+      "attachment_records": 21202,
+      "attachments": false,
+      "lines": {
+        "folder": 17,
+        "message": 50000,
+        "store": 1
+      },
+      "median_wall_ns": 7003778915,
+      "peak_maxrss_kib": 75232,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 75004,
+          "status": "exited",
+          "sys_us": 1261168,
+          "user_us": 5954773,
+          "wall_ns": 7745008406
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 75232,
+          "status": "exited",
+          "sys_us": 926957,
+          "user_us": 5929473,
+          "wall_ns": 7003778915
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 75116,
+          "status": "exited",
+          "sys_us": 811545,
+          "user_us": 5952133,
+          "wall_ns": 6807471878
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2141594624,
+      "stdout_bytes": 141220403,
+      "store": "scale.pst (glibc build, not released)",
+      "warnings": 0,
+      "written": null
+    },
+    {
+      "after": null,
+      "attachment_records": 21202,
+      "attachments": false,
+      "lines": {
+        "message": 50000,
+        "store": 1
+      },
+      "median_wall_ns": 4021441817,
+      "peak_maxrss_kib": 62724,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 61648,
+          "status": "exited",
+          "sys_us": 921361,
+          "user_us": 3014995,
+          "wall_ns": 4046295759
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 61852,
+          "status": "exited",
+          "sys_us": 959728,
+          "user_us": 2957435,
+          "wall_ns": 4021441817
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 62724,
+          "status": "exited",
+          "sys_us": 923168,
+          "user_us": 2908196,
+          "wall_ns": 3957695821
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2693103493,
+      "stdout_bytes": 164389002,
+      "store": "scale.mboxrd (glibc build, not released)",
+      "warnings": 0,
+      "written": null
+    },
+    {
+      "after": {
+        "id": 3353860,
+        "of": 50000,
+        "ordinal": 25000
+      },
+      "attachment_records": 10489,
+      "attachments": false,
+      "lines": {
+        "folder": 17,
+        "message": 25000,
+        "store": 1
+      },
+      "median_wall_ns": 6848025808,
+      "peak_maxrss_kib": 60044,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 59644,
+          "status": "exited",
+          "sys_us": 1962905,
+          "user_us": 4918899,
+          "wall_ns": 7360752463
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 59724,
+          "status": "exited",
+          "sys_us": 1730893,
+          "user_us": 5053891,
+          "wall_ns": 6848025808
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 60044,
+          "status": "exited",
+          "sys_us": 1741483,
+          "user_us": 4973779,
+          "wall_ns": 6775321179
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2141594624,
+      "stdout_bytes": 70458691,
+      "store": "scale.pst",
+      "tail_of_whole_read": true,
+      "warnings": 0,
+      "written": null
+    },
+    {
+      "after": {
+        "id": 3353860,
+        "of": 50000,
+        "ordinal": 25000
+      },
+      "attachment_records": 10489,
+      "attachments": true,
+      "lines": {
+        "folder": 17,
+        "message": 25000,
+        "store": 1
+      },
+      "median_wall_ns": 8405210243,
+      "peak_maxrss_kib": 60956,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 60724,
+          "status": "exited",
+          "sys_us": 2378106,
+          "user_us": 5106719,
+          "wall_ns": 7886085845
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 60956,
+          "status": "exited",
+          "sys_us": 2574981,
+          "user_us": 5303916,
+          "wall_ns": 8405210243
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 60836,
+          "status": "exited",
+          "sys_us": 2528303,
+          "user_us": 5329179,
+          "wall_ns": 8421093199
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2141594624,
+      "stdout_bytes": 70458691,
+      "store": "scale.pst",
+      "tail_of_whole_read": true,
+      "warnings": 0,
+      "written": {
+        "bytes": 906526200,
+        "files": 10489
+      }
+    },
+    {
+      "after": {
+        "id": 3696164,
+        "of": 50000,
+        "ordinal": 50000
+      },
+      "attachment_records": 0,
+      "attachments": false,
+      "lines": {
+        "folder": 17,
+        "store": 1
+      },
+      "median_wall_ns": 104572993,
+      "peak_maxrss_kib": 16164,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 16164,
+          "status": "exited",
+          "sys_us": 47452,
+          "user_us": 52287,
+          "wall_ns": 108978300
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 16044,
+          "status": "exited",
+          "sys_us": 43371,
+          "user_us": 60206,
+          "wall_ns": 104572993
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 15988,
+          "status": "exited",
+          "sys_us": 44252,
+          "user_us": 57082,
+          "wall_ns": 102391052
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2141594624,
+      "stdout_bytes": 2165,
+      "store": "scale.pst",
+      "tail_of_whole_read": true,
+      "warnings": 0,
+      "written": null
+    },
+    {
+      "after": {
+        "id": 25000,
+        "of": 50000,
+        "ordinal": 25000
+      },
+      "attachment_records": 10584,
+      "attachments": false,
+      "lines": {
+        "message": 25000,
+        "store": 1
+      },
+      "median_wall_ns": 4226342330,
+      "peak_maxrss_kib": 42372,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 41364,
+          "status": "exited",
+          "sys_us": 2180932,
+          "user_us": 2322452,
+          "wall_ns": 4624862689
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 41680,
+          "status": "exited",
+          "sys_us": 1987071,
+          "user_us": 2124427,
+          "wall_ns": 4226342330
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 42372,
+          "status": "exited",
+          "sys_us": 2032248,
+          "user_us": 2083067,
+          "wall_ns": 4221248845
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2693103493,
+      "stdout_bytes": 82028488,
+      "store": "scale.mboxrd",
+      "tail_of_whole_read": true,
+      "warnings": 0,
+      "written": null
+    },
+    {
+      "after": {
+        "id": 25000,
+        "of": 50000,
+        "ordinal": 25000
+      },
+      "attachment_records": 10584,
+      "attachments": true,
+      "lines": {
+        "message": 25000,
+        "store": 1
+      },
+      "median_wall_ns": 4551911258,
+      "peak_maxrss_kib": 42472,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 42044,
+          "status": "exited",
+          "sys_us": 2203543,
+          "user_us": 2223908,
+          "wall_ns": 4548331037
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 42472,
+          "status": "exited",
+          "sys_us": 2247880,
+          "user_us": 2186958,
+          "wall_ns": 4551911258
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 41396,
+          "status": "exited",
+          "sys_us": 2216089,
+          "user_us": 2200201,
+          "wall_ns": 4555208545
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2693103493,
+      "stdout_bytes": 82028488,
+      "store": "scale.mboxrd",
+      "tail_of_whole_read": true,
+      "warnings": 0,
+      "written": {
+        "bytes": 924463693,
+        "files": 10584
+      }
+    },
+    {
+      "after": {
+        "id": 50000,
+        "of": 50000,
+        "ordinal": 50000
+      },
+      "attachment_records": 0,
+      "attachments": false,
+      "lines": {
+        "store": 1
+      },
+      "median_wall_ns": 1925471696,
+      "peak_maxrss_kib": 24612,
+      "runs": [
+        {
+          "code": 0,
+          "maxrss_kib": 24612,
+          "status": "exited",
+          "sys_us": 1447185,
+          "user_us": 408111,
+          "wall_ns": 1925471696
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 24540,
+          "status": "exited",
+          "sys_us": 1492439,
+          "user_us": 424366,
+          "wall_ns": 1987554222
+        },
+        {
+          "code": 0,
+          "maxrss_kib": 23228,
+          "status": "exited",
+          "sys_us": 1437109,
+          "user_us": 399416,
+          "wall_ns": 1917470894
+        }
+      ],
+      "same_stdout_every_run": true,
+      "size": 2693103493,
+      "stdout_bytes": 46,
+      "store": "scale.mboxrd",
+      "tail_of_whole_read": true,
+      "warnings": 0,
+      "written": null
+    }
+  ]
+}

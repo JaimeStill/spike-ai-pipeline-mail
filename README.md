@@ -48,7 +48,10 @@ of the file, never parsed. Neither writes their warnings or their attachments' f
 decimal digits naming a whole number from 1; `0`, a sign, or anything else is a usage error, as
 is `--after` with a `.msg` or an `.eml`, a single message. An id that names no message is refused:
 in a `.pst`, one no folder's contents table holds, a folder's node id among them; in an mbox, an
-ordinal past its last, a separator line with nothing after it counted.
+ordinal past its last, a separator line with nothing after it counted. A resume costs about what
+its remaining messages cost, plus the pass to the cursor: on the 2.1 GB scale store of 50,000
+messages, resumed after its last, 0.1 s for the `.pst` and 1.9 s for the same messages as a 2.7 GB
+mboxrd, whose every byte before the cursor is scanned (the finding's "Resuming a read").
 
 | Exit code | Meaning |
 | --- | --- |
