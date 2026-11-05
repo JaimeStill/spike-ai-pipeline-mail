@@ -14,6 +14,8 @@ repository's `context/README.md`.
 - **MIME**: `.eml` messages and mbox files (read as mboxrd) to the same model, through
   mail-parser: headers mapped to the MAPI fields, text and HTML bodies, attachments by part, and
   message/rfc822 and message/global parts nested as embedded messages.
+- **resume**: `--after <id>` resumes a `.pst` after a message's node id and an mbox after an
+  ordinal, the whole read's tail byte for byte, the messages before it passed over unopened.
 - **fields**: headers and threading fields (Message-ID, In-Reply-To, References, conversation
   topic and index) as stored; no thread grouping. A `.pst`'s and a `.msg`'s strings are decoded by
   their code page through codepage-strings, a MIME message's by its charsets through mail-parser.
@@ -26,6 +28,6 @@ repository's `context/README.md`.
   same messages as an mboxrd. The MIME group: an `.eml` with hand truth, an mboxrd of the nine
   `.eml` that `mise run mboxrd` writes, and mime4j's mbox.rlug.
 - **finding**: fields recovered per kind against the fixtures' truth, and time and peak memory
-  on plaso's store and the generated 2 GB store, and on the same messages as a 2.7 GB mboxrd
-  (`docs/findings/mail-cli.md`).
+  on plaso's store and the generated 2 GB store, on the same messages as a 2.7 GB mboxrd, and on
+  both resumed after their middle and their last message (`docs/findings/mail-cli.md`).
 - **release**: static musl binaries for linux-x64 and linux-arm64.

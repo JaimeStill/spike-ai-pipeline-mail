@@ -1,8 +1,8 @@
 //! The findings run of evidence 16 for the CLI alone: the fields it recovers, per field kind,
 //! against the committed fixtures' truth, and its time and peak memory on plaso's store and the
-//! scale store, as a .pst and as an mboxrd of the same messages. scripts/findings.sh builds it
-//! and runs it (`mise run findings`); the check only compiles it. It prints the tables and
-//! writes one results file, where the script says.
+//! scale store, as a .pst and as an mboxrd of the same messages, whole and resumed with --after.
+//! scripts/findings.sh builds it and runs it (`mise run findings`); the check only compiles it.
+//! It prints the tables and writes one results file, where the script says.
 //!
 //! The truth it scores against:
 //! - the generated fixtures': tests/fixtures/generated/truth.json, the hand truth of the .eml
@@ -157,7 +157,15 @@ fn run(args: &Args) -> Result<(), String> {
                 "findings: timing {name}{}",
                 if attachments { " --attachments" } else { "" }
             );
-            timing.push(time_store(args, &args.bin, name, path, *runs, attachments)?);
+            timing.push(time_store(
+                args,
+                &args.bin,
+                name,
+                path,
+                *runs,
+                attachments,
+                None,
+            )?);
         }
     }
     // plaso's store and the scale store, as a .pst and as an mboxrd.
@@ -171,7 +179,12 @@ fn run(args: &Args) -> Result<(), String> {
             path,
             *runs,
             false,
+            None,
         )?);
+    }
+    // The scale store resumed, as a .pst and as an mboxrd, from the whole reads just timed.
+    for (name, path, runs) in &stores[stores.len() - 2..] {
+        timing.extend(time_resumes(args, name, path, *runs)?);
     }
 
     let results = json!({
@@ -1006,8 +1019,105 @@ fn measure(
     Ok(Value::Object(fields))
 }
 
-/// A store's runs, with and without --attachments: each run's time and peak memory, and what the
-/// first run wrote.
+/// The file-name slug of a store's name: its ASCII letters and digits, every other character a
+/// '-'.
+fn slug(name: &str) -> String {
+    name.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect()
+}
+
+/// A message-level line's message: whether it is the message's own line, and the message's id.
+/// These are the lines a resumed read writes only for the messages after the cursor's: a message
+/// line, and the `skipped` line of a message (its `id`) or of an attachment (its `message`). Every
+/// other line, the store's, a folder's, and the `skipped` line of a folder or of a folder's table,
+/// a resumed read writes as the whole read does.
+fn message_level(line: &str) -> Option<(bool, Option<u64>)> {
+    if let Some(rest) = line.strip_prefix("{\"line\":\"message\",\"id\":") {
+        let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+        return Some((true, digits.parse().ok()));
+    }
+    if line.starts_with("{\"line\":\"skipped\"") {
+        let value: Value = serde_json::from_str(line).ok()?;
+        let owner = match value["kind"].as_str()? {
+            "message" => &value["id"],
+            "attachment" => &value["message"],
+            _ => return None,
+        };
+        return Some((false, owner.as_u64()));
+    }
+    None
+}
+
+/// The scale store resumed from its whole read, `time_store`'s stdout for it without
+/// --attachments: after its middle message by order (the 25,000th of 50,000), without and with
+/// --attachments, and after its last, which is the cost of passing every message over. Each
+/// row's `tail_of_whole_read` is whether its stdout was the whole read's tail, byte for byte, as
+/// the README defines it: every line not message-level, and the message-level lines after the
+/// cursor's message's.
+fn time_resumes(args: &Args, name: &str, path: &Path, runs: usize) -> Result<Vec<Value>, String> {
+    let whole = args.state.join("out").join(format!("{}.jsonl", slug(name)));
+    let text = fs::read_to_string(&whole).map_err(|e| format!("{}: {e}", whole.display()))?;
+    let lines: Vec<&str> = text.split_inclusive('\n').collect();
+    let ids: Vec<(usize, u64)> = lines
+        .iter()
+        .enumerate()
+        .filter_map(|(at, line)| match message_level(line) {
+            Some((true, Some(id))) => Some((at, id)),
+            _ => None,
+        })
+        .collect();
+    if ids.is_empty() {
+        return Err(format!("{name}: the whole read has no message lines"));
+    }
+    let middle = ids.len().div_ceil(2);
+    let mut rows = Vec::new();
+    for (ordinal, attachments) in [(middle, false), (middle, true), (ids.len(), false)] {
+        let (at, id) = ids[ordinal - 1];
+        // The cursor's message ends at its last line: its attachments' skipped lines follow its
+        // message line.
+        let end = at
+            + lines[at + 1..]
+                .iter()
+                .take_while(|line| message_level(line) == Some((false, Some(id))))
+                .count();
+        let tail: String = lines
+            .iter()
+            .enumerate()
+            .filter(|(i, line)| *i > end || message_level(line).is_none())
+            .map(|(_, line)| *line)
+            .collect();
+        let cursor = json!({"id": id, "ordinal": ordinal, "of": ids.len()});
+        eprintln!(
+            "findings: timing {name} --after {id}, message {ordinal} of {}{}",
+            ids.len(),
+            if attachments { " --attachments" } else { "" }
+        );
+        let mut row = time_store(
+            args,
+            &args.bin,
+            name,
+            path,
+            runs,
+            attachments,
+            Some(&cursor),
+        )?;
+        let resumed = args.state.join("out").join(format!(
+            "{}-after-{id}{}.jsonl",
+            slug(name),
+            if attachments { "-attachments" } else { "" }
+        ));
+        let resumed =
+            fs::read_to_string(&resumed).map_err(|e| format!("{}: {e}", resumed.display()))?;
+        row["tail_of_whole_read"] = json!(resumed == tail);
+        rows.push(row);
+    }
+    Ok(rows)
+}
+
+/// A store's runs, with and without --attachments, and resumed with --after when `after` names
+/// the cursor's message (its `id`, its `ordinal` in the whole read and the messages it is `of`):
+/// each run's time and peak memory, and what the first run wrote.
 fn time_store(
     args: &Args,
     bin: &Path,
@@ -1015,12 +1125,17 @@ fn time_store(
     path: &Path,
     runs: usize,
     attachments: bool,
+    after: Option<&Value>,
 ) -> Result<Value, String> {
-    let slug: String = name
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-        .collect();
-    let slug = format!("{slug}{}", if attachments { "-attachments" } else { "" });
+    let after_id = after.map(|cursor| cursor["id"].to_string());
+    let slug = format!(
+        "{}{}{}",
+        slug(name),
+        after_id
+            .as_ref()
+            .map_or(String::new(), |id| format!("-after-{id}")),
+        if attachments { "-attachments" } else { "" }
+    );
     let out = args.state.join("out");
     let dir = args.state.join("attachments").join(&slug);
     let mut measured = Vec::new();
@@ -1039,6 +1154,10 @@ fn time_store(
         if attachments {
             cli_args.push("--attachments".as_ref());
             cli_args.push(dir.as_os_str());
+        }
+        if let Some(id) = &after_id {
+            cli_args.push("--after".as_ref());
+            cli_args.push(id.as_ref());
         }
         let run = measure(args, &slug, bin, Some((&stdout, &stderr)), &cli_args)?;
         if run["status"] != "exited" || run["code"] != 0 {
@@ -1077,6 +1196,7 @@ fn time_store(
         "store": name,
         "size": size(path)?,
         "attachments": attachments,
+        "after": after,
         "runs": measured,
         "median_wall_ns": walls[walls.len() / 2],
         "peak_maxrss_kib": peak,
@@ -1259,9 +1379,9 @@ fn print_summary(results: &Value) {
         results["rusage_floor"]["wall_ns"].as_f64().unwrap_or(0.0) / 1e6
     );
     println!(
-        "| Store | Size | --attachments | Runs | Median wall | Peak memory | Messages | Folders | Skipped | Warnings | Files written |"
+        "| Store | Size | --attachments | Runs | Median wall | Peak memory | Messages | Folders | Skipped | Warnings | Stdout bytes | Files written |"
     );
-    println!("|---|---|---|---|---|---|---|---|---|---|---|");
+    println!("|---|---|---|---|---|---|---|---|---|---|---|---|");
     for row in results["timing"].as_array().into_iter().flatten() {
         let written = if row["attachments"] == true {
             format!(
@@ -1271,8 +1391,16 @@ fn print_summary(results: &Value) {
         } else {
             "".to_owned()
         };
+        let after = row["after"].get("id").map_or(String::new(), |id| {
+            let tail = if row["tail_of_whole_read"] == true {
+                "the whole read's tail"
+            } else {
+                "NOT the whole read's tail"
+            };
+            format!(" --after {id} ({tail})")
+        });
         println!(
-            "| {} | {} | {} | {} | {} | {:.1} MiB | {} | {} | {} | {} | {written} |",
+            "| {}{after} | {} | {} | {} | {} | {:.1} MiB | {} | {} | {} | {} | {} | {written} |",
             row["store"].as_str().unwrap_or("?"),
             row["size"],
             if row["attachments"] == true {
@@ -1287,6 +1415,7 @@ fn print_summary(results: &Value) {
             row["lines"].get("folder").unwrap_or(&json!(0)),
             row["lines"].get("skipped").unwrap_or(&json!(0)),
             row["warnings"],
+            row["stdout_bytes"],
         );
     }
 }

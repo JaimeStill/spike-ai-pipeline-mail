@@ -8,6 +8,36 @@ file names are the CLI's output contract: a change to any of them is a change he
 
 ## [Unreleased]
 
+## [v0.3.0] - 2026-11-05
+
+The output contract only grows: without `--after`, every input gives the same lines, byte for
+byte, as in v0.2.0.
+
+### Added
+
+- `--after <id>`, which resumes a read of a `.pst` or an mbox after the message whose `id` is
+  given: in a `.pst` its node id, in an mbox its 1-based ordinal, empty entries counted. The
+  resumed read is the tail of the whole read, byte for byte: the store line, every folder line,
+  and every `skipped` line of a folder or of a folder's table, all as the whole read writes them,
+  since a consumer places messages by their folders; and of the message-level lines (a message
+  line and the `skipped` lines of a message and of its attachments) only those after the given
+  message's, in the whole read's order.
+- The messages up to and including the given one are passed over unread, with no warnings and no
+  attachment files: a `.pst`'s by their node ids in their folders' contents tables, never opened,
+  after one depth-first walk of the folders, before any output, that finds the id; an mbox's by
+  scanning its separator lines from the start of the file, never parsed. An mbox entry that can't
+  be read before the given ordinal is refused; one at it ends the read, as a whole read ends
+  there.
+- Refusals: `--after` with a `.msg` or an `.eml`, a single message, is a usage error, exit 2,
+  given after sniffing, so a missing input is still refused, exit 3; so is an id that isn't
+  decimal digits naming a whole number from 1 to 4,294,967,295 (`0`, a sign, a non-digit, or an
+  empty value), leading zeros read. An id that names no message is refused, exit 3, before any
+  output: in a `.pst`, one no folder's contents table holds, a folder's node id among them; in an
+  mbox, an ordinal past its last.
+- The finding's "Resuming a read" section (`docs/findings/mail-cli.md`), from recorded run
+  v0.3.0: the time, peak memory, and stdout of the scale store, as a .pst and as an mboxrd,
+  resumed after its middle and its last message, beside its whole read.
+
 ## [v0.2.0] - 2026-11-04
 
 The output contract only grows: a `.pst` or a `.msg` gives the same lines, byte for byte, as in
@@ -126,6 +156,7 @@ v0.1.0.
   or subfolders, and its reason can't name the fault: outlook-pst 1.2.0 gives such a table as no
   table. A folder that claims no items or subfolders while it has some loses them silently.
 
-[Unreleased]: https://github.com/JaimeStill/spike-ai-pipeline-mail/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/JaimeStill/spike-ai-pipeline-mail/compare/v0.3.0...HEAD
+[v0.3.0]: https://github.com/JaimeStill/spike-ai-pipeline-mail/releases/tag/v0.3.0
 [v0.2.0]: https://github.com/JaimeStill/spike-ai-pipeline-mail/releases/tag/v0.2.0
 [v0.1.0]: https://github.com/JaimeStill/spike-ai-pipeline-mail/releases/tag/v0.1.0

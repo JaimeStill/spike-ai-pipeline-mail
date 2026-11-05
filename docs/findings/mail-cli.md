@@ -4,7 +4,8 @@ This page records the CLI's part of the spike's evidence 16 (the root's `context
 item 16): the fields it recovers, per field kind, against the hand truth of the generated and
 public fixtures, and its time and peak memory on every committed store, on plaso's 59 MB store,
 and on a generated 2.1 GB store; and, for .eml and mbox, the fields it recovers against the MIME
-fixtures' truth and its time and peak memory on the same generated messages as a 2.7 GB mboxrd.
+fixtures' truth and its time and peak memory on the same generated messages as a 2.7 GB mboxrd;
+and its time and peak memory resuming a read of both with `--after`.
 It measures the CLI alone, with no baseline against other readers. Thread grouping and attachment routing, the rest of evidence 16, belong to processing's
 planned email finding.
 
@@ -13,7 +14,9 @@ Every number here comes from run
 2026-11-03 from 00:25:43 to 00:27:39 UTC, CLI 0.1.0 at commit 32e5aa9, the static musl release
 binary the check builds for x86_64 (3,576,888 bytes, SHA-256 `fb56ab08...fb75cb8`); that file has
 every miss and every run. The numbers of ".eml and mbox" come from run
-[`mail-cli/runs/v0.2.0/results.json`](mail-cli/runs/v0.2.0/results.json), as that section says.
+[`mail-cli/runs/v0.2.0/results.json`](mail-cli/runs/v0.2.0/results.json), as that section says,
+and those of "Resuming a read" from run
+[`mail-cli/runs/v0.3.0/results.json`](mail-cli/runs/v0.3.0/results.json), as that one says.
 A run is kept only when it is recorded ("Rerunning").
 
 ## At a glance
@@ -25,6 +28,7 @@ A run is kept only when it is recorded ("Rerunning").
 | How fast? | plaso's 59 MB store, 540 messages: **1.59 s**. The 2.1 GB scale store, 50,000 messages: **13.27 s**, **14.38 s** with `--attachments` writing 1.88 GB. Median of 3 runs each. |
 | How much memory? | Peak resident memory **42 MiB** on plaso's store and **65 to 67 MiB** on the scale store: it barely grows with the store. |
 | And .eml and mbox? | Every field recovered: the eight .eml and 09-threading.eml against their hand truth (101 of 101), and every message of nine.mboxrd and mime4j's mbox.rlug equal, field by field, to its source. The same 50,000 messages as a 2.7 GB mboxrd read in **6.86 s** at **41.0 MiB**, against **14.82 s** at **65.9 MiB** for scale.pst in the same run (run v0.2.0). |
+| And resuming a read? | `--after` costs little beyond the messages it reads. Resumed after the last of the scale store's 50,000 messages, reading none, the .pst takes **0.10 s** at **15.8 MiB**, its pre-walk of the folders' contents tables, and the mboxrd **1.93 s** at **24.0 MiB**, the scan of its separator lines. After the middle message, the .pst takes **6.85 s** and the mboxrd **4.23 s**, against 14.32 s and 6.73 s whole (run v0.3.0). Every resumed stdout was the whole read's tail, byte for byte. |
 | Anything else? | The static musl binary takes 2.0 to 2.3 times the glibc build's time on the large stores (13.27 s against 6.51 s; 1.59 s against 0.71 s), at about a tenth less memory. plaso's store has 3 contacts outlook-pst 1.2.0 can't open, skipped with a warning each. |
 
 ## The machine
@@ -390,6 +394,55 @@ The glibc build, timed beside it as above, without `--attachments`:
 musl takes 1.7 times glibc's time on the mboxrd, less than the 2.2 times it takes on the .pst
 here, and a third less memory on the mboxrd (a ninth less on the .pst).
 
+## Resuming a read
+
+Every number in this section comes from run
+[`mail-cli/runs/v0.3.0/results.json`](mail-cli/runs/v0.3.0/results.json), on the same laptop on
+2026-11-05 from 13:57:17 to 14:01:41 UTC, CLI 0.3.0 at commit d726744 (`v0.2.0-2-gd726744`), the
+static musl release binary for x86_64 (4,123,528 bytes, SHA-256 `22d1063b...8686450`), the first
+run made after the version was raised for its release. The run repeats every table above: its
+scores are v0.2.0's exactly, and its stdout for scale.pst had the SHA-256 it had at v0.1.0
+(`441b5c31...c04b6b`).
+
+`--after <id>` resumes a read after the message whose `id` is given (the README, "Usage"). The
+scale store was built from seed 16 just before the run, in 37.5 s, with the content SHA-256 and
+the sizes of v0.1.0 and v0.2.0 (`d40792a4...19362b4`; scale.pst 2,141,594,624 B, scale.mboxrd
+2,693,103,493 B, SHA-256 `79f5ad34...b22fe1a`). Each resume's cursor was taken from the whole
+read the run had just timed: its middle message by order, the 25,000th message line of 50,000,
+and its last. In the .pst that order is the folders' depth-first order, so the 25,000th is node id
+3353860; in the mboxrd it is file order, so the 25,000th is ordinal 25000, another message.
+Measured as above: through `bench/rusage.c` (floor 1,528 KiB, 1.43 ms), 3 runs each way back to
+back, warm, stdout to a file.
+
+| Store | `--after` | `--attachments` | Median wall, of 3 | Runs | Peak memory, most of 3 | Stdout | Lines out | Written |
+|---|---|---|---|---|---|---|---|---|
+| scale.pst | | no | 14.322 s | 14.714, 14.322, 13.928 s | 65.1 MiB | 141,220,403 B | 17 folders, 50,000 messages | |
+| scale.pst | 3353860, the 25,000th | no | 6.848 s | 7.361, 6.848, 6.775 s | 58.6 MiB | 70,458,691 B | 17 folders, 25,000 messages | |
+| scale.pst | 3353860, the 25,000th | yes | 8.405 s | 7.886, 8.405, 8.421 s | 59.5 MiB | the same | the same | 10,489 files, 906,526,200 B |
+| scale.pst | 3696164, the 50,000th | no | 0.105 s | 0.109, 0.105, 0.102 s | 15.8 MiB | 2,165 B | 17 folders | |
+| scale.mboxrd | | no | 6.727 s | 6.729, 6.727, 6.669 s | 41.0 MiB | 164,389,002 B | 50,000 messages | |
+| scale.mboxrd | 25000 | no | 4.226 s | 4.625, 4.226, 4.221 s | 41.4 MiB | 82,028,488 B | 25,000 messages | |
+| scale.mboxrd | 25000 | yes | 4.552 s | 4.548, 4.552, 4.555 s | 41.5 MiB | the same | the same | 10,584 files, 924,463,693 B |
+| scale.mboxrd | 50000 | no | 1.925 s | 1.925, 1.988, 1.917 s | 24.0 MiB | 46 B | the store line | |
+
+Every resumed stdout was the whole read's tail, byte for byte, as the README defines it (the
+results file's `tail_of_whole_read`): the store line, the .pst's 17 folder lines, and the
+message lines after the cursor's. Each was the same on every run, the middle resume's the same
+with and without `--attachments` (both were the tail), and no record was skipped and no warning written. With `--attachments` a resume wrote the files of
+the messages after the cursor alone: 10,489 of the .pst's 21,202, and 10,584 of the mboxrd's.
+
+**The cursor's cost** is the resume after the last message, which reads none. In the .pst it is
+0.105 s, about 0.05 s user and 0.05 s system: the walk of the 17 folders' contents tables that
+finds the node id before any output, and the pass over every message by its node id, never opened.
+It is under 1% of the whole read's 14.32 s, so a .pst's resume costs what its remaining messages
+cost: after the middle message, 6.85 s, 0.48 of the whole read, about 5.0 s user and 1.8 s system
+per run against the whole read's 9.8 to 10.0 s and 3.4 to 3.8 s. In the mboxrd it is 1.93 s,
+about 0.4 s user and 1.5 s system: the scan of the 2.7 GB file's separator lines, which reads
+every byte before the cursor, unparsed. That is 29% of the whole read's 6.73 s, and the resume
+after the middle message, 4.23 s, 0.63 of the whole read, is about half that scan and half the
+whole read's parsing. Peak memory falls with what is read: the .pst's 15.8 MiB with no message
+read is its folders' tables and the reader, the mboxrd's 24.0 MiB its scan.
+
 ## Known limits
 
 The CLI's `.pst` and `.msg` limits, as its README lists them, and what run v0.1.0 shows of each:
@@ -441,7 +494,7 @@ That copies the results to `docs/findings/mail-cli/runs/<name>/results.json`, `<
 `<date>-<n>`, the first such directory that doesn't exist; a name is letters, digits, `.`, `_`,
 and `-`, not starting with `.`, and an existing run directory is never overwritten. Run
 `v0.1.0`'s scoring and timing took 116 s, after the builds; run `v0.2.0`'s, with the mboxrd,
-188 s. `FINDINGS_RUNS` (3) sets the runs of plaso's store and the scale store; the generator's `scale` command takes `--seed <n>` and
+188 s; run `v0.3.0`'s, with the resumes, 264 s. `FINDINGS_RUNS` (3) sets the runs of plaso's store and the scale store; the generator's `scale` command takes `--seed <n>` and
 `--messages <n>` after `--`.
 
 In `results.json` (schema 1): `cli` is the binary's version, commit, SHA-256, and size; `machine`
@@ -451,5 +504,7 @@ the CPU, logical CPUs, memory, and kernel; `recovery` holds, for each table (`ge
 file, message, kind, outcome, and expected and written values; `rusage_floor` the wrapper's own;
 `plaso` the store's source and SHA-256; `scale` the store's size, from v0.2.0 the mboxrd's size
 and SHA-256, and its `scale.json`; and `timing` each store's runs (status, exit code, peak memory,
-wall, user, and system time), median wall, peak, stdout size, whether stdout was the same every run, its lines by
+wall, user, and system time), from v0.3.0 its `after` cursor (the id, its ordinal in the whole
+read, and the messages it is of; `null` for a whole read) and, for a resume, `tail_of_whole_read`,
+median wall, peak, stdout size, whether stdout was the same every run, its lines by
 kind, its attachment records, its warnings, and what `--attachments` wrote.
