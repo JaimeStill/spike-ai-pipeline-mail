@@ -1,8 +1,8 @@
 //! The findings run of evidence 16 for the CLI alone: the fields it recovers, per field kind,
 //! against the committed fixtures' truth, and its time and peak memory on plaso's store and the
-//! scale store, as a .pst and as an mboxrd of the same messages, whole and resumed with --after. scripts/findings.sh builds it
-//! and runs it (`mise run findings`); the check only compiles it. It prints the tables and
-//! writes one results file, where the script says.
+//! scale store, as a .pst and as an mboxrd of the same messages, whole and resumed with --after.
+//! scripts/findings.sh builds it and runs it (`mise run findings`); the check only compiles it.
+//! It prints the tables and writes one results file, where the script says.
 //!
 //! The truth it scores against:
 //! - the generated fixtures': tests/fixtures/generated/truth.json, the hand truth of the .eml
@@ -1027,18 +1027,24 @@ fn slug(name: &str) -> String {
         .collect()
 }
 
-/// A message-level line's `"line"` kind and, for a message line, its id: the lines a resumed read
-/// writes only after the cursor's message. Every other line, the store's, a folder's, and the
-/// `skipped` line of a folder or of a folder's table, a resumed read writes as the whole read
-/// does.
-fn message_level(line: &str) -> Option<Option<u64>> {
+/// A message-level line's message: whether it is the message's own line, and the message's id.
+/// These are the lines a resumed read writes only for the messages after the cursor's: a message
+/// line, and the `skipped` line of a message (its `id`) or of an attachment (its `message`). Every
+/// other line, the store's, a folder's, and the `skipped` line of a folder or of a folder's table,
+/// a resumed read writes as the whole read does.
+fn message_level(line: &str) -> Option<(bool, Option<u64>)> {
     if let Some(rest) = line.strip_prefix("{\"line\":\"message\",\"id\":") {
         let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
-        return Some(digits.parse().ok());
+        return Some((true, digits.parse().ok()));
     }
     if line.starts_with("{\"line\":\"skipped\"") {
         let value: Value = serde_json::from_str(line).ok()?;
-        return matches!(value["kind"].as_str(), Some("message" | "attachment")).then_some(None);
+        let owner = match value["kind"].as_str()? {
+            "message" => &value["id"],
+            "attachment" => &value["message"],
+            _ => return None,
+        };
+        return Some((false, owner.as_u64()));
     }
     None
 }
@@ -1048,7 +1054,7 @@ fn message_level(line: &str) -> Option<Option<u64>> {
 /// --attachments, and after its last, which is the cost of passing every message over. Each
 /// row's `tail_of_whole_read` is whether its stdout was the whole read's tail, byte for byte, as
 /// the README defines it: every line not message-level, and the message-level lines after the
-/// cursor's message line.
+/// cursor's message's.
 fn time_resumes(args: &Args, name: &str, path: &Path, runs: usize) -> Result<Vec<Value>, String> {
     let whole = args.state.join("out").join(format!("{}.jsonl", slug(name)));
     let text = fs::read_to_string(&whole).map_err(|e| format!("{}: {e}", whole.display()))?;
@@ -1056,7 +1062,10 @@ fn time_resumes(args: &Args, name: &str, path: &Path, runs: usize) -> Result<Vec
     let ids: Vec<(usize, u64)> = lines
         .iter()
         .enumerate()
-        .filter_map(|(at, line)| message_level(line).flatten().map(|id| (at, id)))
+        .filter_map(|(at, line)| match message_level(line) {
+            Some((true, Some(id))) => Some((at, id)),
+            _ => None,
+        })
         .collect();
     if ids.is_empty() {
         return Err(format!("{name}: the whole read has no message lines"));
@@ -1065,10 +1074,17 @@ fn time_resumes(args: &Args, name: &str, path: &Path, runs: usize) -> Result<Vec
     let mut rows = Vec::new();
     for (ordinal, attachments) in [(middle, false), (middle, true), (ids.len(), false)] {
         let (at, id) = ids[ordinal - 1];
+        // The cursor's message ends at its last line: its attachments' skipped lines follow its
+        // message line.
+        let end = at
+            + lines[at + 1..]
+                .iter()
+                .take_while(|line| message_level(line) == Some((false, Some(id))))
+                .count();
         let tail: String = lines
             .iter()
             .enumerate()
-            .filter(|(i, line)| *i > at || message_level(line).is_none())
+            .filter(|(i, line)| *i > end || message_level(line).is_none())
             .map(|(_, line)| *line)
             .collect();
         let cursor = json!({"id": id, "ordinal": ordinal, "of": ids.len()});
