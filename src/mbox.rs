@@ -17,7 +17,7 @@
 //! is refused before any output.
 
 use std::fs::File;
-use std::io::{BufReader, Write};
+use std::io::{self, BufReader, Write};
 use std::path::Path;
 
 use mail_parser::MessageBuffers;
@@ -114,7 +114,7 @@ pub fn read(
 /// with the reason; one at `after` is the cursor's own, and the read ends at it, its tail empty,
 /// as the whole read's is.
 fn skip_to(
-    entries: &mut impl Iterator<Item = (u32, std::io::Result<Message>)>,
+    entries: &mut impl Iterator<Item = (u32, io::Result<Message>)>,
     after: u32,
 ) -> Result<bool, String> {
     let mut last = 0;

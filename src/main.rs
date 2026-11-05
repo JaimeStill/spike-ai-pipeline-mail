@@ -228,7 +228,7 @@ fn parse(args: &[OsString]) -> Result<Command, Fault> {
 /// isn't a number, rather than "resume from the start".
 fn message_id(arg: &OsString) -> Option<u32> {
     let digits = arg.to_str()?;
-    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+    if !digits.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
     }
     digits.parse().ok().filter(|id| *id != 0)

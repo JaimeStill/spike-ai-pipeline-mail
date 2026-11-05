@@ -390,11 +390,7 @@ impl<W: Write> Walk<'_, W> {
             self.skipped("hierarchy", data.id, None, None, reason)?;
         }
         for id in data.subfolders {
-            let read = self.read(|pst| {
-                let entry_id = pst.store().properties().make_entry_id(NodeId::from(id))?;
-                read_folder(pst.store(), &entry_id)
-            });
-            match read {
+            match self.subfolder(id) {
                 Ok(sub) => self.folder(sub, Some(data.id), path.clone())?,
                 Err(reason) => {
                     warn(
@@ -416,12 +412,16 @@ impl<W: Write> Walk<'_, W> {
         if data.messages.contains(&id) {
             return true;
         }
-        data.subfolders.iter().any(|&sub| {
-            let read = self.read(|pst| {
-                let entry_id = pst.store().properties().make_entry_id(NodeId::from(sub))?;
-                read_folder(pst.store(), &entry_id)
-            });
-            read.is_ok_and(|sub| self.holds(&sub, id))
+        data.subfolders
+            .iter()
+            .any(|&sub| self.subfolder(sub).is_ok_and(|sub| self.holds(&sub, id)))
+    }
+
+    /// Reads the subfolder whose node id is `id`.
+    fn subfolder(&mut self, id: u32) -> Result<FolderData, String> {
+        self.read(|pst| {
+            let entry_id = pst.store().properties().make_entry_id(NodeId::from(id))?;
+            read_folder(pst.store(), &entry_id)
         })
     }
 
