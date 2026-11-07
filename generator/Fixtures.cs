@@ -11,16 +11,16 @@ namespace SpikeAiPipeline.Mail.Generator;
 
 /// <summary>
 /// The committed set: every store of layout.json as a .pst under pst/, every .eml source its msg
-/// list names as a .msg under msg/, and manifest.json. Each output is built twice, to learn whether it is
-/// byte-stable, and the run reports how each source and output differs from the manifest it
-/// replaces.
+/// list names as a .msg under msg/, and manifest.json. Each output is built twice, to learn
+/// whether it is byte-stable, and the run reports how each source and output differs from the
+/// manifest it replaces.
 /// </summary>
 public static class Fixtures
 {
     const string Note =
         "Written by the generator (MISE_ENV=fixtures mise run fixtures); edit layout.json, the "
-        + ".eml sources or the item sources, never this file. Each output was built twice in the run, and byte_stable "
-        + "is whether the two builds were identical. Neither format is: PST Builder 1.3.0 writes a "
+        + ".eml sources or the item sources, never this file. Each output was built twice in the "
+        + "run, and byte_stable is whether the two builds were identical. Neither format is: PST Builder 1.3.0 writes a "
         + "random store UID and a random search key per message (Guid.NewGuid), and MsgKit 3.0.6 "
         + "random record keys and entry IDs and the time of conversion as the creation and "
         + "modification times. So each output's sha256 records the committed file only; a rerun "
@@ -46,11 +46,14 @@ public static class Fixtures
                 return 1;
             }
         }
+        // Every item source is read, and so validated, before the first output is written.
+        var items = layout.Stores.SelectMany(s => s.Folders).SelectMany(f => f.Items).Distinct()
+            .ToDictionary(name => name, name => ItemSource.Read(Path.Combine(dir, "items", name)));
 
         var outputs = new List<OutputEntry>();
         foreach (var store in layout.Stores)
         {
-            outputs.Add(Build(dir, store.File, path => BuildStore(store, dir, path),
+            outputs.Add(Build(dir, store.File, path => BuildStore(store, dir, items, path),
                 store.Folders
                     .SelectMany(f => f.Messages.Select(name => $"eml/{name}").Concat(f.Items.Select(name => $"items/{name}")))
                     .ToList()));
@@ -110,9 +113,10 @@ public static class Fixtures
     /// One store through PST Builder's in-memory tree, the folders in layout order. Each folder's
     /// messages come first, each mapped from its .eml by PstBuilder.Eml: a source's first Received
     /// header gives the delivery time, so it differs from the submit time, which is the Date
-    /// header. Then its items, each written field by field from its item source (Items.cs).
+    /// header. Then its items, each written field by field from its item source (Items.cs), read
+    /// by name from items.
     /// </summary>
-    static void BuildStore(StoreLayout store, string dir, string path)
+    static void BuildStore(StoreLayout store, string dir, IReadOnlyDictionary<string, ItemSource> items, string path)
     {
         Pst.Write(path, top =>
         {
@@ -126,7 +130,7 @@ public static class Fixtures
                 }
                 foreach (var name in layout.Items)
                 {
-                    folder.AddMessage(ItemSource.Read(Path.Combine(dir, "items", name)).ToMessage());
+                    folder.AddMessage(items[name].ToMessage());
                 }
             }
         }, store.DisplayName);

@@ -29,9 +29,35 @@ public sealed record ItemSource(
     /// <summary>MAPI's recipient types, PidTagRecipientType.</summary>
     const int MapiTo = 1, MapiCc = 2;
 
-    public static ItemSource Read(string path) =>
-        JsonSerializer.Deserialize<ItemSource>(File.ReadAllBytes(path))
-        ?? throw new InvalidDataException($"{path}: no item");
+    /// <summary>
+    /// A missing or null field fails the read, naming the field, rather than writing an item
+    /// without it.
+    /// </summary>
+    static readonly JsonSerializerOptions Options = new()
+    {
+        RespectRequiredConstructorParameters = true,
+        RespectNullableAnnotations = true,
+    };
+
+    /// <summary>
+    /// Reads and validates one item source: every field present, and both times in the one form
+    /// Utc reads, so a malformed source fails here, by its path, before the store is written.
+    /// </summary>
+    public static ItemSource Read(string path)
+    {
+        try
+        {
+            var item = JsonSerializer.Deserialize<ItemSource>(File.ReadAllBytes(path), Options)
+                ?? throw new InvalidDataException("no item");
+            _ = Utc(item.SubmitTime);
+            _ = Utc(item.DeliveryTime);
+            return item;
+        }
+        catch (Exception e) when (e is JsonException or FormatException or InvalidDataException)
+        {
+            throw new InvalidDataException($"{path}: {e.Message}", e);
+        }
+    }
 
     public MessageItem ToMessage()
     {
