@@ -10,16 +10,16 @@ using PstBuilder.Messaging;
 namespace SpikeAiPipeline.Mail.Generator;
 
 /// <summary>
-/// The committed set: every store of layout.json as a .pst under pst/, every listed source as a
-/// .msg under msg/, and manifest.json. Each output is built twice, to learn whether it is
+/// The committed set: every store of layout.json as a .pst under pst/, every .eml source its msg
+/// list names as a .msg under msg/, and manifest.json. Each output is built twice, to learn whether it is
 /// byte-stable, and the run reports how each source and output differs from the manifest it
 /// replaces.
 /// </summary>
 public static class Fixtures
 {
     const string Note =
-        "Written by the generator (MISE_ENV=fixtures mise run fixtures); edit layout.json or the "
-        + ".eml sources, never this file. Each output was built twice in the run, and byte_stable "
+        "Written by the generator (MISE_ENV=fixtures mise run fixtures); edit layout.json, the "
+        + ".eml sources or the item sources, never this file. Each output was built twice in the run, and byte_stable "
         + "is whether the two builds were identical. Neither format is: PST Builder 1.3.0 writes a "
         + "random store UID and a random search key per message (Guid.NewGuid), and MsgKit 3.0.6 "
         + "random record keys and entry IDs and the time of conversion as the creation and "
@@ -33,17 +33,16 @@ public static class Fixtures
         var previous = Manifest.ReadIfExists(manifestPath);
         var emlDir = Path.Combine(dir, "eml");
 
-        var sources = Directory.GetFiles(emlDir, "*.eml")
-            .Select(path => Path.GetFileName(path))
-            .Order(StringComparer.Ordinal)
-            .Select(name => new SourceEntry($"eml/{name}", Manifest.Sha256(Path.Combine(emlDir, name))))
-            .ToList();
+        var sources = Sources(dir, "eml", "*.eml").Concat(Sources(dir, "items", "*.json")).ToList();
         var known = sources.Select(s => s.File).ToHashSet();
-        foreach (var name in layout.Stores.SelectMany(s => s.Folders).SelectMany(f => f.Messages).Concat(layout.Msg))
+        var named = layout.Stores.SelectMany(s => s.Folders).SelectMany(f => f.Messages).Concat(layout.Msg)
+            .Select(name => $"eml/{name}")
+            .Concat(layout.Stores.SelectMany(s => s.Folders).SelectMany(f => f.Items).Select(name => $"items/{name}"));
+        foreach (var file in named)
         {
-            if (!known.Contains($"eml/{name}"))
+            if (!known.Contains(file))
             {
-                Console.Error.WriteLine($"generator: layout.json names eml/{name}, which doesn't exist");
+                Console.Error.WriteLine($"generator: layout.json names {file}, which doesn't exist");
                 return 1;
             }
         }
@@ -51,8 +50,10 @@ public static class Fixtures
         var outputs = new List<OutputEntry>();
         foreach (var store in layout.Stores)
         {
-            outputs.Add(Build(dir, store.File, path => BuildStore(store, emlDir, path),
-                store.Folders.SelectMany(f => f.Messages).Select(name => $"eml/{name}").ToList()));
+            outputs.Add(Build(dir, store.File, path => BuildStore(store, dir, path),
+                store.Folders
+                    .SelectMany(f => f.Messages.Select(name => $"eml/{name}").Concat(f.Items.Select(name => $"items/{name}")))
+                    .ToList()));
         }
         foreach (var name in layout.Msg)
         {
@@ -65,6 +66,20 @@ public static class Fixtures
         manifest.Write(manifestPath);
         Report(previous, manifest);
         return 0;
+    }
+
+    /// <summary>The sources in one directory under the generated one, in ordinal order of name; none if it is missing.</summary>
+    static IEnumerable<SourceEntry> Sources(string dir, string subdir, string pattern)
+    {
+        var path = Path.Combine(dir, subdir);
+        if (!Directory.Exists(path))
+        {
+            return [];
+        }
+        return Directory.GetFiles(path, pattern)
+            .Select(file => Path.GetFileName(file))
+            .Order(StringComparer.Ordinal)
+            .Select(name => new SourceEntry($"{subdir}/{name}", Manifest.Sha256(Path.Combine(path, name))));
     }
 
     /// <summary>
@@ -92,11 +107,12 @@ public static class Fixtures
     }
 
     /// <summary>
-    /// One store through PST Builder's in-memory tree, the folders in layout order, each message
-    /// mapped from its source by PstBuilder.Eml. A source's first Received header gives the
-    /// delivery time, so it differs from the submit time, which is the Date header.
+    /// One store through PST Builder's in-memory tree, the folders in layout order. Each folder's
+    /// messages come first, each mapped from its .eml by PstBuilder.Eml: a source's first Received
+    /// header gives the delivery time, so it differs from the submit time, which is the Date
+    /// header. Then its items, each written field by field from its item source (Items.cs).
     /// </summary>
-    static void BuildStore(StoreLayout store, string emlDir, string path)
+    static void BuildStore(StoreLayout store, string dir, string path)
     {
         Pst.Write(path, top =>
         {
@@ -105,8 +121,12 @@ public static class Fixtures
                 var folder = FolderAt(top, layout.Path);
                 foreach (var name in layout.Messages)
                 {
-                    var eml = File.ReadAllBytes(Path.Combine(emlDir, name));
+                    var eml = File.ReadAllBytes(Path.Combine(dir, "eml", name));
                     folder.AddEml(eml, receivedUtc: Received(eml));
+                }
+                foreach (var name in layout.Items)
+                {
+                    folder.AddMessage(ItemSource.Read(Path.Combine(dir, "items", name)).ToMessage());
                 }
             }
         }, store.DisplayName);

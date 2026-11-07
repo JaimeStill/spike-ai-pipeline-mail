@@ -8,6 +8,15 @@ file names are the CLI's output contract: a change to any of them is a change he
 
 ## [Unreleased]
 
+### Added
+
+- Fixtures: the generated `pst/conversations.pst`, whose Conversation History folder holds Skype
+  for Business text chats (`IPM.Note.Microsoft.Conversation`, one-to-one and multi-party), a
+  missed IM (`IPM.Note.Microsoft.Missed`), and an `IPM.Note` beside them, built from item sources,
+  `tests/fixtures/generated/items/`, written field by field through PST Builder's MessageItem,
+  with their hand truth: each item's class, sender, recipients, times, HTML transcript, and
+  Markdown. The CLI is unchanged.
+
 ## [v0.3.0] - 2026-11-05
 
 The output contract only grows: without `--after`, every input gives the same lines, byte for

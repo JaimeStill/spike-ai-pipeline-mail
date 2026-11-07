@@ -274,8 +274,8 @@ it on linux-x64 and linux-arm64. The tests run the built binary over the committ
 (`tests/fixtures/`, each with its sources and SHA-256) and over inputs the tests build.
 `mise run mboxrd` writes the MIME group's mboxrd, `tests/fixtures/mime/nine.mboxrd`, from its nine
 `.eml`; the check rebuilds it and compares it byte for byte.
-`MISE_ENV=fixtures mise run fixtures` regenerates the generated fixtures from their `.eml`
-sources, and `MISE_ENV=fixtures mise run scale` builds the scale store and the same messages as an mboxrd,
+`MISE_ENV=fixtures mise run fixtures` regenerates the generated fixtures from their `.eml` and
+item sources, and `MISE_ENV=fixtures mise run scale` builds the scale store and the same messages as an mboxrd,
 neither committed.
 `mise run findings` runs the finding ([`docs/findings/mail-cli.md`](docs/findings/mail-cli.md),
 "Rerunning").

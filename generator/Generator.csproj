@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- The fixtures generator: turns the hand-written .eml sources into .pst and .msg fixtures.
-       Run only through `MISE_ENV=fixtures mise run fixtures`; the check never builds it. -->
+  <!-- The fixtures generator: turns the hand-written .eml and item sources into .pst and .msg
+       fixtures. Run only through `MISE_ENV=fixtures mise run fixtures`; the check never builds it. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>

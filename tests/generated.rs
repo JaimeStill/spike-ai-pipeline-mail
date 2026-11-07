@@ -1,6 +1,6 @@
 //! The generated fixtures under tests/fixtures/generated: the .pst stores and the .msg files
-//! built from the hand-written .eml sources, read through the binary and checked against the
-//! sources' truth, and the manifest checked against the committed files.
+//! built from the hand-written .eml and item sources, read through the binary and checked against
+//! the sources' truth, and the manifest checked against the committed files.
 //!
 //! The truth (truth.json) is the sources'; what each format carries of it is stated here. PST
 //! Builder 1.3.0, through its EmlMapper, writes the subject, the sender's name and address, the To
@@ -25,6 +25,16 @@
 //! - an attachment's type comes from MsgKit's own table of extensions (MSGKIT_MIME_TYPES);
 //! - a message/rfc822 part is attached as a by-value .eml file named by its subject, not as an
 //!   embedded message, so a generated .msg has no embedded message either.
+//!
+//! An item source (items/*.json) is written field by field through PST Builder's MessageItem, for
+//! the classes an .eml can't carry: conversations.pst's Conversation History folder holds Skype
+//! for Business text chats (IPM.Note.Microsoft.Conversation), a missed IM
+//! (IPM.Note.Microsoft.Missed) and an IPM.Note beside them. The truth's items section is the
+//! store's own, every field stated: the class, the subject, the sender, the recipients, the four
+//! times, the HTML body, the item's only body, and the Markdown the CLI makes from it. PST Builder
+//! adds what it adds to an .eml's message: no sender address type, normal importance and
+//! sensitivity, and the subject as the conversation topic; the generator gives each recipient the
+//! address type SMTP.
 
 mod common;
 
@@ -44,6 +54,15 @@ fn generated(path: &str) -> std::path::PathBuf {
 
 fn json_file(path: &str) -> Value {
     serde_json::from_slice(&std::fs::read(generated(path)).unwrap()).unwrap()
+}
+
+/// A layout folder's list of sources, empty when it is left out.
+fn optional_strings(value: &Value) -> Vec<String> {
+    if value.is_null() {
+        vec![]
+    } else {
+        strings(value)
+    }
 }
 
 fn strings(value: &Value) -> Vec<String> {
@@ -182,6 +201,46 @@ fn assert_message(got: &Value, truth: &Value, source: &str) {
     );
 }
 
+/// One item line against its item source's truth, every field the truth states, and nothing the
+/// generator doesn't write.
+fn assert_item(got: &Value, truth: &Value, source: &str) {
+    let expect = |field: &str, value: Option<&Value>| {
+        assert_eq!(got.get(field), value, "{source}: {field}");
+    };
+    for field in [
+        "class",
+        "subject",
+        "sender",
+        "submit_time",
+        "delivery_time",
+        "creation_time",
+        "modification_time",
+    ] {
+        expect(field, Some(&truth[field]));
+    }
+    expect("to", recipients(truth.get("to")).as_ref());
+    expect("cc", recipients(truth.get("cc")).as_ref());
+    expect("bcc", None);
+    expect("importance", Some(&json!("normal")));
+    expect("sensitivity", Some(&json!("normal")));
+    expect("conversation_topic", Some(&truth["subject"]));
+    for field in [
+        "transport_headers",
+        "message_id",
+        "in_reply_to",
+        "references",
+        "conversation_index",
+        "attachments",
+    ] {
+        expect(field, None);
+    }
+    assert_eq!(
+        got["body"],
+        json!({"html": truth["html"], "derived": {"markdown": truth["markdown"]}}),
+        "{source}: body"
+    );
+}
+
 /// The message line `source` became in mailbox.pst.
 fn message_from(source: &str) -> Value {
     let layout = json_file("layout.json");
@@ -241,9 +300,10 @@ fn markdown_from_plain_text_reads_literally() {
 }
 
 /// Each generated store, read through the binary, holds the layout's folder tree, and in each
-/// folder its sources' messages in order, each matching its source's truth.
+/// folder its .eml sources' messages, then its item sources' items, in order, each matching its
+/// source's truth.
 #[test]
-fn stores_match_the_eml_truth() {
+fn stores_match_the_truth() {
     let layout = json_file("layout.json");
     let truth = json_file("truth.json");
     for store in layout["stores"].as_array().unwrap() {
@@ -277,11 +337,20 @@ fn stores_match_the_eml_truth() {
 
         for folder in store["folders"].as_array().unwrap() {
             let path = strings(&folder["path"]);
-            let sources = strings(&folder["messages"]);
+            let sources = optional_strings(&folder["messages"]);
+            let items = optional_strings(&folder["items"]);
             let got = messages.remove(&path).unwrap_or_default();
-            assert_eq!(got.len(), sources.len(), "{file}: messages in {path:?}");
-            for (message, source) in got.iter().zip(&sources) {
+            assert_eq!(
+                got.len(),
+                sources.len() + items.len(),
+                "{file}: messages in {path:?}"
+            );
+            let (from_eml, from_items) = got.split_at(sources.len());
+            for (message, source) in from_eml.iter().zip(&sources) {
                 assert_message(message, &truth["messages"][source], source);
+            }
+            for (item, source) in from_items.iter().zip(&items) {
+                assert_item(item, &truth["items"][source], source);
             }
         }
         assert!(
@@ -328,9 +397,11 @@ fn files_named(lines: &[Value]) -> Vec<String> {
 }
 
 /// With --attachments, each record's file is in the directory, created as it was missing, its
-/// bytes those its name hashes; stdout is the same as without the flag.
+/// bytes those its name hashes, and a store without attachments leaves it empty; stdout is the
+/// same as without the flag.
 #[test]
 fn attachments_are_written_by_content() {
+    let mut written = 0;
     for store in json_file("layout.json")["stores"].as_array().unwrap() {
         let file = generated(store["file"].as_str().unwrap());
         let stem = file.file_stem().unwrap().to_str().unwrap();
@@ -339,15 +410,16 @@ fn attachments_are_written_by_content() {
         assert_eq!(out.code, Some(0), "{}", out.stderr);
         assert_eq!(out.stdout, run(&[&file]).stdout);
         let mut expected = files_named(&out.lines());
-        assert!(!expected.is_empty());
         expected.sort_unstable();
         expected.dedup();
         assert_eq!(names(&dir), expected);
+        written += expected.len();
         for name in expected {
             let (sha, _) = name.split_once('.').unwrap();
             assert_eq!(sha256(&dir.join(&name)), sha, "{name}");
         }
     }
+    assert!(written > 0, "some store has attachments");
 }
 
 /// Without --attachments, a run writes nothing to disk: its working directory stays empty.
@@ -573,24 +645,69 @@ fn the_manifest_matches_the_committed_files() {
         }
     }
     let mut committed = BTreeSet::new();
-    for dir in ["eml", "pst", "msg"] {
+    for dir in ["eml", "items", "pst", "msg"] {
         for entry in std::fs::read_dir(generated(dir)).unwrap() {
             let name = entry.unwrap().file_name().into_string().unwrap();
             committed.insert(format!("{dir}/{name}"));
         }
     }
     assert_eq!(listed, committed, "the manifest lists every committed file");
-    let truths: BTreeSet<String> = truth["messages"]
-        .as_object()
-        .unwrap()
-        .keys()
-        .map(|name| format!("eml/{name}"))
+    let truths: BTreeSet<String> = [("messages", "eml"), ("items", "items")]
+        .iter()
+        .flat_map(|(section, dir)| {
+            truth[*section]
+                .as_object()
+                .unwrap()
+                .keys()
+                .map(move |name| format!("{dir}/{name}"))
+        })
         .collect();
     let sources: BTreeSet<String> = sources
         .iter()
         .map(|s| s["file"].as_str().unwrap().to_owned())
         .collect();
     assert_eq!(truths, sources, "every source has its truth");
+}
+
+/// The conversation store holds what the email package's conversation records are tested over: in
+/// its Conversation History folder, a one-to-one and a multi-party Skype for Business chat, a
+/// missed IM, and an ordinary IPM.Note for contrast, each item with a sender, a recipient and an
+/// HTML body, and its end no earlier than its start.
+#[test]
+fn the_conversation_truth_covers_its_classes() {
+    let layout = json_file("layout.json");
+    let truth = json_file("truth.json");
+    let store = layout["stores"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|store| store["file"] == "pst/conversations.pst")
+        .unwrap();
+    let folder = &store["folders"][0];
+    assert_eq!(strings(&folder["path"]), ["Conversation History"]);
+    let items: Vec<&Value> = strings(&folder["items"])
+        .iter()
+        .map(|source| &truth["items"][source])
+        .collect();
+    let of = |class: &str| -> Vec<&Value> {
+        items
+            .iter()
+            .copied()
+            .filter(|item| item["class"] == class)
+            .collect()
+    };
+    let chats = of("IPM.Note.Microsoft.Conversation");
+    let to = |item: &Value| item["to"].as_array().unwrap().len();
+    assert!(chats.iter().any(|chat| to(chat) == 1), "a one-to-one chat");
+    assert!(chats.iter().any(|chat| to(chat) > 1), "a multi-party chat");
+    assert!(!of("IPM.Note.Microsoft.Missed").is_empty(), "a missed IM");
+    assert!(!of("IPM.Note").is_empty(), "an IPM.Note");
+    for item in items {
+        assert!(item["sender"]["address"].is_string());
+        assert!(to(item) >= 1);
+        assert!(item["submit_time"].as_str() <= item["delivery_time"].as_str());
+        assert!(item["html"].as_str().unwrap().starts_with("<html>"));
+    }
 }
 
 /// The manifest's package versions are the ones generator/Generator.csproj pins, so the committed

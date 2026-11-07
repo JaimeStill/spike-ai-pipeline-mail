@@ -615,13 +615,18 @@ fn strings(value: &Value) -> Vec<String> {
         .collect()
 }
 
-/// The generated store against the truth: each message found by its subject, in the folder the
-/// layout put it in.
+/// The generated stores against the truth: each message found by its subject, in the folder the
+/// layout put it in. Only the .eml sources' messages are scored, so a store of item sources
+/// alone, the conversation store, is passed over.
 fn generated_pst(bin: &Path, dir: &Path) -> Result<Score, String> {
     let layout = read_json(&dir.join("layout.json"))?;
     let truth = read_json(&dir.join("truth.json"))?;
     let mut score = Score::new();
     for store in layout["stores"].as_array().into_iter().flatten() {
+        let mut folders = store["folders"].as_array().into_iter().flatten();
+        if !folders.any(|folder| !strings(&folder["messages"]).is_empty()) {
+            continue;
+        }
         let file = store["file"].as_str().unwrap_or_default();
         let lines = lines(bin, &dir.join(file))?;
         score.files.push(format!("generated/{file}"));

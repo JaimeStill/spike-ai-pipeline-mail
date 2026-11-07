@@ -1,5 +1,5 @@
 {
-  "note": "Written by the generator (MISE_ENV=fixtures mise run fixtures); edit layout.json or the .eml sources, never this file. Each output was built twice in the run, and byte_stable is whether the two builds were identical. Neither format is: PST Builder 1.3.0 writes a random store UID and a random search key per message (Guid.NewGuid), and MsgKit 3.0.6 random record keys and entry IDs and the time of conversion as the creation and modification times. So each output's sha256 records the committed file only; a rerun shows drift in an output's size, and the tests show drift in its content.",
+  "note": "Written by the generator (MISE_ENV=fixtures mise run fixtures); edit layout.json, the .eml sources or the item sources, never this file. Each output was built twice in the run, and byte_stable is whether the two builds were identical. Neither format is: PST Builder 1.3.0 writes a random store UID and a random search key per message (Guid.NewGuid), and MsgKit 3.0.6 random record keys and entry IDs and the time of conversion as the creation and modification times. So each output's sha256 records the committed file only; a rerun shows drift in an output's size, and the tests show drift in its content.",
   "tools": {
     "dotnet-sdk": "10.0.402",
     "dotnet-runtime": "10.0.13",
@@ -41,12 +41,32 @@
     {
       "file": "eml/08-forward-attached-message.eml",
       "sha256": "0a0fc37a3bb97a9a17d25950aeea7540d2d280ff0cfee7ef2e6f4ffe21adf8b8"
+    },
+    {
+      "file": "items/01-chat-one-to-one.json",
+      "sha256": "3bf2f43e1dc294b7f158bc82ff46fc9c489432a1b95ebd3e4f58b9053cf1543d"
+    },
+    {
+      "file": "items/02-chat-multi-party.json",
+      "sha256": "f2ce5c2551b7a1497860a808194c62081aeb75af3bb5c48797abaa1bb38ad0fb"
+    },
+    {
+      "file": "items/03-chat-incoming.json",
+      "sha256": "95ae946ef72ba9778226a1d3b5ab1b28b0009edeba65ce58945c9b482abcdc26"
+    },
+    {
+      "file": "items/04-missed.json",
+      "sha256": "b530aed326afcadf8e2196380cefbb4e0291ddbad168d20d943518626f1dd4a0"
+    },
+    {
+      "file": "items/05-note.json",
+      "sha256": "32337b3724849d5a3f374ae151e08fdb03e4afb92fe70a268369fb80187623c2"
     }
   ],
   "outputs": [
     {
       "file": "pst/mailbox.pst",
-      "sha256": "771e8d0c603c1f4f20785778e5be99b0fc7811d6b80c9fde2609ea87cc5c7fa6",
+      "sha256": "5449d8236f2b131203596bd880522675f50320621eb7b08fab09bafd197fbf87",
       "size": 271360,
       "byte_stable": false,
       "sources": [
@@ -61,8 +81,21 @@
       ]
     },
     {
+      "file": "pst/conversations.pst",
+      "sha256": "fa5cd60ec65375abd6a497e2e2b65e5889f72822dd0df22d270207b306e9479a",
+      "size": 271360,
+      "byte_stable": false,
+      "sources": [
+        "items/01-chat-one-to-one.json",
+        "items/02-chat-multi-party.json",
+        "items/03-chat-incoming.json",
+        "items/04-missed.json",
+        "items/05-note.json"
+      ]
+    },
+    {
       "file": "msg/01-plain.msg",
-      "sha256": "bc2fab033800d2dcde568a646a941be006ba018e7bdbd6d18546e1f57dedf47e",
+      "sha256": "a526bb306424c14eb2853ecdecd5db22b106ea14406f3ec0b580bcd1ef020957",
       "size": 13824,
       "byte_stable": false,
       "sources": [
@@ -71,7 +104,7 @@
     },
     {
       "file": "msg/02-reply-latin1.msg",
-      "sha256": "2174528013a0c6e813485624fcf9fd4f07c390a528781e685c50564cf0e5d1f4",
+      "sha256": "c4ec38c0809887c29132cac0a36b3d0355f4cb166eef9c1233160d0675e87dd1",
       "size": 11264,
       "byte_stable": false,
       "sources": [
@@ -80,7 +113,7 @@
     },
     {
       "file": "msg/03-html-inline-image.msg",
-      "sha256": "79ef3a474d52fdbf69b2f93aa9adfee579a0dd6f0924906b72239954b2057ca8",
+      "sha256": "fa08dc334052558b22dc6310137efe41cd9c9a24e26fb8bf1a41f493e4e0e926",
       "size": 12800,
       "byte_stable": false,
       "sources": [
@@ -89,7 +122,7 @@
     },
     {
       "file": "msg/04-attachment-cyrillic.msg",
-      "sha256": "bf2f6d69fb57090da2586a4f347417947c4ade501f6794372319306358f80dd2",
+      "sha256": "2c80e5dc09ca4703bb2616c63b2183f102c88fe4b7ee3b5a7b92e5fd71dd2a11",
       "size": 13824,
       "byte_stable": false,
       "sources": [
@@ -98,7 +131,7 @@
     },
     {
       "file": "msg/05-japanese.msg",
-      "sha256": "9738db032a72cd0ff26e0628073cc59fde39fb5614c763916aeab996c09b556d",
+      "sha256": "225f992efab9bbeff1f8b4eeaade31a760e2b255cca99f67603800874edd3594",
       "size": 10240,
       "byte_stable": false,
       "sources": [
@@ -107,7 +140,7 @@
     },
     {
       "file": "msg/06-chinese.msg",
-      "sha256": "ed4d916f718b1c185b86943b6d399cce5dfab17624cc46818892319462d45100",
+      "sha256": "2b0bde4b1fef7a8f5a86e01c9e66bd77338b1235a99ea2a67370dfe314e837e8",
       "size": 10240,
       "byte_stable": false,
       "sources": [
@@ -116,7 +149,7 @@
     },
     {
       "file": "msg/07-html-only-bcc.msg",
-      "sha256": "ceedbf6ac52fe4d47144149089024efb9bd7a3920d2366bd222a345842978ab4",
+      "sha256": "9880ab76ba3c07447d27edb67f2b8b3fe2fff67ced3dabdf2e22a83253ae798f",
       "size": 11776,
       "byte_stable": false,
       "sources": [
@@ -125,7 +158,7 @@
     },
     {
       "file": "msg/08-forward-attached-message.msg",
-      "sha256": "a7c1b4ede2080d0a64e894e2c7d2454b82c56578944bba907347024c94da0464",
+      "sha256": "b4c8756699c20598d394e80df550d05b35e04fe624dc80c23f3ae994c6fe5a7a",
       "size": 14848,
       "byte_stable": false,
       "sources": [
