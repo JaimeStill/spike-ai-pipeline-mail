@@ -8,6 +8,10 @@ file names are the CLI's output contract: a change to any of them is a change he
 
 ## [Unreleased]
 
+## [v0.3.1] - 2026-11-06
+
+The output contract is unchanged: every input gives the same lines, byte for byte, as in v0.3.0.
+
 ### Added
 
 - Fixtures: the generated `pst/conversations.pst`, whose Conversation History folder holds Skype
@@ -165,7 +169,8 @@ v0.1.0.
   or subfolders, and its reason can't name the fault: outlook-pst 1.2.0 gives such a table as no
   table. A folder that claims no items or subfolders while it has some loses them silently.
 
-[Unreleased]: https://github.com/JaimeStill/spike-ai-pipeline-mail/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/JaimeStill/spike-ai-pipeline-mail/compare/v0.3.1...HEAD
+[v0.3.1]: https://github.com/JaimeStill/spike-ai-pipeline-mail/releases/tag/v0.3.1
 [v0.3.0]: https://github.com/JaimeStill/spike-ai-pipeline-mail/releases/tag/v0.3.0
 [v0.2.0]: https://github.com/JaimeStill/spike-ai-pipeline-mail/releases/tag/v0.2.0
 [v0.1.0]: https://github.com/JaimeStill/spike-ai-pipeline-mail/releases/tag/v0.1.0
