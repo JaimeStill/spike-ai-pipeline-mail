@@ -624,7 +624,7 @@ fn generated_pst(bin: &Path, dir: &Path) -> Result<Score, String> {
     let mut score = Score::new();
     for store in layout["stores"].as_array().into_iter().flatten() {
         let mut folders = store["folders"].as_array().into_iter().flatten();
-        if !folders.any(|folder| !strings(&folder["messages"]).is_empty()) {
+        if folders.all(|folder| strings(&folder["messages"]).is_empty()) {
             continue;
         }
         let file = store["file"].as_str().unwrap_or_default();
