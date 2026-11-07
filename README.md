@@ -30,7 +30,7 @@ from its name, in this order: a PST header; an OLE2 compound file, which must ho
 message; a first line starting `From `, an mbox's separator line; else an RFC 5322 header block,
 an `.eml`: a first line that is a header field, and a `From` or `Date` field before the block's
 blank line or its first line that is neither a field nor a folded continuation. The arguments may
-come in any order; `--version`, alone, prints the bare version, `0.3.0`.
+come in any order; `--version`, alone, prints the bare version, `0.3.1`.
 
 With `--attachments <dir>`, each distinct attachment content is written once into `<dir>`,
 created if missing, as stored, before the line of the message it belongs to. Without it nothing is
@@ -274,8 +274,8 @@ it on linux-x64 and linux-arm64. The tests run the built binary over the committ
 (`tests/fixtures/`, each with its sources and SHA-256) and over inputs the tests build.
 `mise run mboxrd` writes the MIME group's mboxrd, `tests/fixtures/mime/nine.mboxrd`, from its nine
 `.eml`; the check rebuilds it and compares it byte for byte.
-`MISE_ENV=fixtures mise run fixtures` regenerates the generated fixtures from their `.eml`
-sources, and `MISE_ENV=fixtures mise run scale` builds the scale store and the same messages as an mboxrd,
+`MISE_ENV=fixtures mise run fixtures` regenerates the generated fixtures from their `.eml` and
+item sources, and `MISE_ENV=fixtures mise run scale` builds the scale store and the same messages as an mboxrd,
 neither committed.
 `mise run findings` runs the finding ([`docs/findings/mail-cli.md`](docs/findings/mail-cli.md),
 "Rerunning").

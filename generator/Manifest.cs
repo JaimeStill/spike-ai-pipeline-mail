@@ -33,7 +33,7 @@ public sealed record Manifest(
         Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path)));
 }
 
-/// <summary>One .eml source, by its path under the generated directory.</summary>
+/// <summary>One source, an .eml or an item source, by its path under the generated directory.</summary>
 public sealed record SourceEntry(
     [property: JsonPropertyName("file")] string File,
     [property: JsonPropertyName("sha256")] string Sha256);
