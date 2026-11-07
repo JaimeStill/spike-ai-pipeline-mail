@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
 
       # mise installs the pinned Rust toolchain, with both musl targets, and shellcheck.
-      - uses: jdx/mise-action@v5.2.6
+      - uses: jdx/mise-action@v5.2.7
 
       # The crates Cargo.lock pins, as downloaded; target/ is built fresh on each run.
       - uses: actions/cache@v6.1.0
